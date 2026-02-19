@@ -1,0 +1,24 @@
+[project]
+name = "gearcity-agent"
+version = "0.1.0"
+description = "AI CEO agent for GearCity simulation game"
+authors = [
+    {name = "gdzer"}
+]
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "langgraph (>=1.0.8,<2.0.0)",
+    "langchain-ollama (>=1.0.1,<2.0.0)",
+    "pandas (>=3.0.0,<4.0.0)",
+    "sqlalchemy (>=2.0.46,<3.0.0)",
+    "requests (>=2.32.5,<3.0.0)",
+    "beautifulsoup4 (>=4.14.3,<5.0.0)",
+    "langchain-community (>=0.4.1,<0.5.0)",
+    "tabulate (>=0.9.0,<0.10.0)",
+    "python-dotenv (>=1.2.1,<2.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

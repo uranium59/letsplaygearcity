@@ -6,7 +6,9 @@ LLM은 SQL 생성과 데이터 해석만 담당하고, 워크플로우 라우팅
 
 Architecture:
     User Question → Planner → Load Schema → SQL Generator → Executor
-    → Router (retry/advance/analyst) → Analyst → END
+    → Router (retry/advance/analyst) → Analyst → Classifier
+    → (factual/analytical → END)
+    → (strategic → Strategist → fan_out → [Evaluator]×N → Aggregator → END)
 
 Usage:
     poetry run python src/db_query_graph.py                          # 대화형 모드
@@ -15,17 +17,35 @@ Usage:
     poetry run python src/db_query_graph.py "D:\\path\\to\\save.db" -q "..."
 """
 
+import operator
 import os
 import re
 import sqlite3
 import sys
 from pathlib import Path
-from typing import TypedDict
+from typing import Annotated, TypedDict
 
 import pandas as pd
 from dotenv import load_dotenv
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, StateGraph
+from langgraph.types import Send
+
+from src.design_formulas import (
+    EngineParams,
+    ChassisParams,
+    GearboxParams,
+    VehicleParams,
+    calc_displacement,
+    calc_hp,
+    simulate_bore_change,
+    simulate_stroke_change,
+    calc_staleness,
+    compare_ratings,
+    check_torque_compatibility,
+    estimate_modification_cost,
+    format_design_report,
+)
 
 load_dotenv()
 
@@ -43,6 +63,11 @@ CORE_TABLES = [
     "MonthlyFiscalsBreakdown", "YearlyAutoBreakdown",
 ]
 
+DESIGN_TABLES = [
+    "CarInfo", "EngineInfo", "ChassisInfo", "GearboxInfo",
+    "GameInfo", "PlayerInfo", "Researching",
+]
+
 MAX_RETRIES = 2
 MAX_SUB_QUERIES = 5
 
@@ -58,6 +83,34 @@ class SubQuery(TypedDict):
     retry_count: int
 
 
+class StrategyCandidate(TypedDict):
+    id: int
+    name: str
+    description: str
+    data_queries: list[str]
+    relevant_tables: list[str]
+
+
+class StrategyEvaluation(TypedDict):
+    strategy_id: int
+    strategy_name: str
+    pros: str
+    cons: str
+    feasibility: str
+    estimated_impact: str
+    supporting_data: str
+    score: float
+
+
+class StrategyEvalInput(TypedDict):
+    """Send() 페이로드: 개별 전략 평가에 필요한 컨텍스트."""
+    strategy: StrategyCandidate
+    user_question: str
+    analyst_summary: str
+    db_path: str
+    schema_context: str
+
+
 class GraphState(TypedDict):
     user_question: str
     db_path: str  # SQLite DB 파일 경로
@@ -67,6 +120,14 @@ class GraphState(TypedDict):
     final_answer: str
     max_retries: int
     error_log: list[str]
+    # 전략 분석 파이프라인 필드
+    question_type: str  # "factual" | "analytical" | "strategic" | "design"
+    analyst_summary: str  # analyst의 중간 결과 (downstream 전달용)
+    strategy_candidates: list[StrategyCandidate]  # strategist 출력
+    strategy_evaluations: Annotated[list[StrategyEvaluation], operator.add]  # 병렬 merge용 reducer
+    # 설계 자문 파이프라인 필드
+    design_calc_results: str  # Python 계산 결과 (포맷된 텍스트)
+    design_context: str  # 설계 관련 추가 SQL 결과
 
 
 # ── 스키마 파싱 유틸리티 ─────────────────────────────────────────
@@ -358,6 +419,130 @@ Answer in the same language as the user's question.
 Keep the response concise but thorough."""
 
 
+CLASSIFIER_PROMPT = """\
+You are a question classifier for a GearCity business analysis system.
+Classify the user's question into exactly one of four categories:
+
+- **factual**: Simple data lookup (e.g., "How much cash do I have?", "What year is it?")
+- **analytical**: Data comparison or trend analysis, but no strategic recommendation needed (e.g., "Compare margins by car model", "Show sales trends")
+- **strategic**: Requires strategic recommendations, action plans, or "what should I do?" decisions (e.g., "How can I improve profitability?", "Should I expand to new cities?")
+- **design**: Questions about vehicle/component design parameters, "what if" simulations, modification/improvement costs, staleness/aging analysis, or design refresh timing (e.g., "What if I increase bore by 5mm?", "How much to upgrade my car?", "How old are my components?", "Is my engine torque compatible with the gearbox?")
+
+## User Question
+{question}
+
+## Analyst Summary
+{analyst_summary}
+
+Output ONLY one word: factual, analytical, strategic, or design
+No explanations, no extra text."""
+
+
+STRATEGIST_PROMPT = """\
+You are a strategic advisor for GearCity, a car company management simulation game.
+Based on the analyst's data summary, generate 2-4 distinct strategic options the player could pursue.
+
+## User Question
+{question}
+
+## Data Analysis Summary
+{analyst_summary}
+
+## Available Tables for Further Analysis
+{catalog}
+
+## Output Format (STRICTLY follow this — one strategy per block)
+STRATEGY1_NAME: <short name>
+STRATEGY1_DESC: <1-2 sentence description>
+STRATEGY1_QUERIES: <comma-separated data questions to validate this strategy>
+STRATEGY1_TABLES: <comma-separated table names needed>
+
+STRATEGY2_NAME: <short name>
+STRATEGY2_DESC: <1-2 sentence description>
+STRATEGY2_QUERIES: <comma-separated data questions to validate this strategy>
+STRATEGY2_TABLES: <comma-separated table names needed>
+
+(up to STRATEGY4)
+
+Output ONLY the strategies. No explanations, no markdown, no extra text."""
+
+
+EVALUATOR_SQL_PROMPT = """\
+You are a SQLite SQL expert for the game GearCity.
+Write a single SELECT query to answer the question below.
+
+## Database Schema
+{schema}
+
+## KEY RULES
+- Output ONLY the raw SQL. No markdown fences, no explanation, no comments.
+- Use LIMIT 20 unless the question needs all rows.
+- PlayerInfo is KEY-VALUE: SELECT Player_Data FROM PlayerInfo WHERE Player_Varible = 'Company_ID'
+- GameInfo is KEY-VALUE: SELECT GameInfo_Data FROM GameInfo WHERE GameInfo_Varible = 'Current_Year'
+- To filter by player company, use subquery: Company_ID = (SELECT Player_Data FROM PlayerInfo WHERE Player_Varible = 'Company_ID')
+
+## Question
+{question}
+
+## SQL"""
+
+
+EVALUATOR_PROMPT = """\
+You are evaluating a specific strategy for a GearCity player.
+
+## User Question
+{question}
+
+## Strategy: {strategy_name}
+{strategy_description}
+
+## Data Analysis (from earlier queries)
+{analyst_summary}
+
+## Additional Data (from strategy-specific queries)
+{additional_data}
+
+## Evaluation Criteria
+Evaluate this strategy on these dimensions:
+1. PROS: Key advantages
+2. CONS: Key risks/downsides
+3. FEASIBILITY: How easy to implement (HIGH/MEDIUM/LOW)
+4. IMPACT: Expected profit/growth impact (HIGH/MEDIUM/LOW)
+5. SCORE: Overall score 1-10
+
+## Output Format (STRICTLY follow this)
+PROS: <bullet points separated by semicolons>
+CONS: <bullet points separated by semicolons>
+FEASIBILITY: <HIGH/MEDIUM/LOW with brief reason>
+IMPACT: <HIGH/MEDIUM/LOW with brief reason>
+SCORE: <number 1-10>
+
+Output ONLY the evaluation. No extra text."""
+
+
+AGGREGATOR_PROMPT = """\
+You are a senior strategic advisor for GearCity.
+Compare the evaluated strategies below and provide a final recommendation.
+
+## User Question
+{question}
+
+## Data Analysis Summary
+{analyst_summary}
+
+## Strategy Evaluations
+{evaluations_section}
+
+## Instructions
+1. Compare all strategies side-by-side
+2. Rank them by overall value (considering score, feasibility, and impact)
+3. Provide a clear final recommendation with reasoning
+4. Suggest a prioritized action plan
+
+Answer in the same language as the user's question.
+Be specific and actionable. Reference the data to support your recommendations."""
+
+
 def analyst_node(state: GraphState) -> dict:
     """수집된 모든 결과를 종합 분석, 최종 답변 생성."""
     llm = create_llm(temperature=0.3)
@@ -383,7 +568,492 @@ def analyst_node(state: GraphState) -> dict:
     )
     response = llm.invoke(prompt)
     answer = strip_think_tags(response.content)
+    return {"final_answer": answer, "analyst_summary": answer}
+
+
+# ── 전략 분석 파이프라인 노드 ─────────────────────────────────────
+
+
+def classifier_node(state: GraphState) -> dict:
+    """질문 유형 분류: factual / analytical / strategic."""
+    llm = create_llm(temperature=0)
+    prompt = CLASSIFIER_PROMPT.format(
+        question=state["user_question"],
+        analyst_summary=state.get("analyst_summary", ""),
+    )
+    response = llm.invoke(prompt)
+    raw = strip_think_tags(response.content).strip().lower()
+
+    # robust 파싱: design/strategic/analytical/factual 키워드 탐색
+    if "design" in raw:
+        qtype = "design"
+    elif "strategic" in raw:
+        qtype = "strategic"
+    elif "analytical" in raw:
+        qtype = "analytical"
+    else:
+        qtype = "factual"
+
+    return {"question_type": qtype}
+
+
+def classifier_router(state: GraphState) -> str:
+    """strategic → strategist, design → design_advisor, 나머지 → END."""
+    if state.get("question_type") == "design":
+        return "design_advisor"
+    if state.get("question_type") == "strategic":
+        return "strategist"
+    return END
+
+
+def strategist_node(state: GraphState) -> dict:
+    """전략 후보 2~4개 생성."""
+    llm = create_llm(temperature=0.5)
+    catalog = build_table_catalog()
+
+    prompt = STRATEGIST_PROMPT.format(
+        question=state["user_question"],
+        analyst_summary=state.get("analyst_summary", ""),
+        catalog=catalog,
+    )
+    response = llm.invoke(prompt)
+    raw = strip_think_tags(response.content)
+
+    # 파싱: STRATEGY1_NAME/DESC/QUERIES/TABLES 패턴
+    candidates: list[StrategyCandidate] = []
+    for i in range(1, 5):
+        name_m = re.search(rf"STRATEGY{i}_NAME:\s*(.+)", raw)
+        desc_m = re.search(rf"STRATEGY{i}_DESC:\s*(.+)", raw)
+        queries_m = re.search(rf"STRATEGY{i}_QUERIES:\s*(.+)", raw)
+        tables_m = re.search(rf"STRATEGY{i}_TABLES:\s*(.+)", raw)
+
+        if name_m and desc_m:
+            queries = [q.strip() for q in (queries_m.group(1) if queries_m else "").split(",") if q.strip()]
+            tables = [t.strip() for t in (tables_m.group(1) if tables_m else "").split(",") if t.strip()]
+            candidates.append(StrategyCandidate(
+                id=i,
+                name=name_m.group(1).strip(),
+                description=desc_m.group(1).strip(),
+                data_queries=queries if queries else [state["user_question"]],
+                relevant_tables=tables if tables else CORE_TABLES[:5],
+            ))
+
+    # 파싱 실패 시 단일 일반 전략 fallback
+    if not candidates:
+        candidates.append(StrategyCandidate(
+            id=1,
+            name="General Improvement",
+            description="Analyze current performance and suggest general improvements.",
+            data_queries=[state["user_question"]],
+            relevant_tables=CORE_TABLES,
+        ))
+
+    return {"strategy_candidates": candidates}
+
+
+def fan_out_strategies(state: GraphState) -> list[Send]:
+    """각 전략 후보에 대해 병렬 Evaluator Send() 생성."""
+    sends = []
+    for strategy in state.get("strategy_candidates", []):
+        payload = StrategyEvalInput(
+            strategy=strategy,
+            user_question=state["user_question"],
+            analyst_summary=state.get("analyst_summary", ""),
+            db_path=state["db_path"],
+            schema_context=state.get("schema_context", ""),
+        )
+        sends.append(Send("strategy_evaluator", payload))
+    return sends
+
+
+def strategy_evaluator_node(state: StrategyEvalInput) -> dict:
+    """개별 전략 평가: 추가 SQL 최대 3개 실행 + LLM 평가."""
+    strategy = state["strategy"]
+    db_path = state["db_path"]
+    analyst_summary = state.get("analyst_summary", "")
+
+    # 추가 데이터 수집: 전략별 SQL 최대 3개
+    additional_data_parts = []
+    schema_text = extract_table_schemas(strategy["relevant_tables"])
+    if not schema_text:
+        schema_text = extract_table_schemas(CORE_TABLES)
+
+    llm = create_llm(temperature=0)
+    for query_text in strategy["data_queries"][:3]:
+        # SQL 생성
+        sql_prompt = EVALUATOR_SQL_PROMPT.format(
+            schema=schema_text,
+            question=query_text,
+        )
+        sql_response = llm.invoke(sql_prompt)
+        sql_raw = strip_think_tags(sql_response.content)
+        sql = clean_sql(sql_raw)
+
+        if not sql or not sql.strip():
+            continue
+
+        # SQL 실행
+        try:
+            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+            df = pd.read_sql_query(sql, conn)
+            conn.close()
+            if df.empty:
+                result_str = "(No results)"
+            else:
+                result_str = df.head(20).to_markdown(index=False)
+            additional_data_parts.append(f"Q: {query_text}\n{result_str}")
+        except Exception:
+            # SQL 실행 실패해도 계속 진행
+            additional_data_parts.append(f"Q: {query_text}\n(Query failed)")
+
+    additional_data = "\n\n".join(additional_data_parts) if additional_data_parts else "(No additional data)"
+
+    # LLM 평가
+    eval_llm = create_llm(temperature=0.3)
+    eval_prompt = EVALUATOR_PROMPT.format(
+        question=state["user_question"],
+        strategy_name=strategy["name"],
+        strategy_description=strategy["description"],
+        analyst_summary=analyst_summary,
+        additional_data=additional_data,
+    )
+    eval_response = eval_llm.invoke(eval_prompt)
+    eval_raw = strip_think_tags(eval_response.content)
+
+    # 파싱
+    pros = _extract_field(eval_raw, "PROS", "N/A")
+    cons = _extract_field(eval_raw, "CONS", "N/A")
+    feasibility = _extract_field(eval_raw, "FEASIBILITY", "MEDIUM")
+    impact = _extract_field(eval_raw, "IMPACT", "MEDIUM")
+    score_str = _extract_field(eval_raw, "SCORE", "5")
+    try:
+        score = float(re.search(r"[\d.]+", score_str).group())
+    except (AttributeError, ValueError):
+        score = 5.0
+
+    evaluation = StrategyEvaluation(
+        strategy_id=strategy["id"],
+        strategy_name=strategy["name"],
+        pros=pros,
+        cons=cons,
+        feasibility=feasibility,
+        estimated_impact=impact,
+        supporting_data=additional_data,
+        score=score,
+    )
+    return {"strategy_evaluations": [evaluation]}
+
+
+def _extract_field(text: str, field_name: str, default: str) -> str:
+    """평가 출력에서 필드 값 추출."""
+    m = re.search(rf"{field_name}:\s*(.+?)(?:\n[A-Z_]+:|$)", text, re.DOTALL)
+    return m.group(1).strip() if m else default
+
+
+def aggregator_node(state: GraphState) -> dict:
+    """전략 평가를 종합 비교, 우선순위 매기기, 최종 답변 생성."""
+    evaluations = state.get("strategy_evaluations", [])
+
+    # 평가 결과가 없으면 analyst_summary + 경고 반환
+    if not evaluations:
+        warning = "\n\n⚠️ 전략 평가를 수행하지 못했습니다. 위의 분석 결과를 참고해 주세요."
+        return {"final_answer": state.get("analyst_summary", "") + warning}
+
+    # 점수 기준 정렬
+    sorted_evals = sorted(evaluations, key=lambda e: e["score"], reverse=True)
+
+    # 평가 섹션 구성
+    eval_sections = []
+    for rank, ev in enumerate(sorted_evals, 1):
+        section = (
+            f"### #{rank}: {ev['strategy_name']} (Score: {ev['score']}/10)\n"
+            f"- **Pros**: {ev['pros']}\n"
+            f"- **Cons**: {ev['cons']}\n"
+            f"- **Feasibility**: {ev['feasibility']}\n"
+            f"- **Impact**: {ev['estimated_impact']}\n"
+            f"- **Supporting Data**: {ev['supporting_data']}"
+        )
+        eval_sections.append(section)
+    evaluations_section = "\n\n".join(eval_sections)
+
+    llm = create_llm(temperature=0.3)
+    prompt = AGGREGATOR_PROMPT.format(
+        question=state["user_question"],
+        analyst_summary=state.get("analyst_summary", ""),
+        evaluations_section=evaluations_section,
+    )
+    response = llm.invoke(prompt)
+    answer = strip_think_tags(response.content)
     return {"final_answer": answer}
+
+
+# ── 설계 자문 파이프라인 ──────────────────────────────────────────
+
+DESIGN_ADVISOR_PROMPT = """\
+You are a GearCity vehicle design advisor with deep knowledge of game mechanics.
+Use the Python-calculated data below AND your knowledge of design formulas to give precise, actionable advice.
+
+## Key Design Formulas (reference)
+- Displacement: CC = 0.7854 * (bore_cm)^2 * stroke_cm * cylinders
+- HP = (torque * rpm) / 5252
+- Bore ↑ → displacement ↑ → torque ↑ → HP ↑ (fuel economy ↓)
+- Stroke ↑ → displacement ↑ + torque ↑, but RPM ↓ (net HP may vary)
+
+## Modification Cost Rules
+- New Generation (no component change): 15% of original design cost
+- + Gearbox change: +5% (total 20%)
+- + Engine change: +5% + auto gearbox 5% (total 25%)
+- + Engine & Gearbox: +10% (total 25%)
+- Chassis change: 100% (full redesign cost)
+
+## Staleness Thresholds
+- Vehicle: safe under ~5 years, penalty starts at age+4 > 9
+- Components (engine/chassis/gearbox): safe under 12 years, steep after 15
+- Combined staleness > 1.0 → buyer rating divided by staleness^1.2
+
+## Torque Compatibility
+- Engine torque > gearbox max torque → quality/reliability penalty
+- Always check headroom when changing engines
+
+## Rating Interpretation
+- Static = at design time, Current = now (with tech progression)
+- Negative delta = design is falling behind current technology
+
+## User Question
+{question}
+
+## Analyst Summary (from SQL data)
+{analyst_summary}
+
+## Python Calculation Results
+{calc_results}
+
+## Additional Design Data (from SQL)
+{design_context}
+
+Instructions:
+1. Reference the specific numbers from calculations (don't re-calculate)
+2. Give concrete recommendations with expected numeric outcomes
+3. Prioritize by cost-effectiveness (biggest improvement per dollar)
+4. Warn about any compatibility issues or urgent staleness
+5. Answer in the same language as the user's question."""
+
+
+def design_advisor_node(state: GraphState) -> dict:
+    """설계 자문 노드: SQL 데이터 수집 → Python 계산 → LLM 합성."""
+    db_path = state["db_path"]
+    analyst_summary = state.get("analyst_summary", "")
+
+    # ── Step 1: 추가 SQL — 플레이어 차량+엔진+샤시+기어박스 JOIN ──
+    design_sql = """\
+SELECT
+    c.Car_ID, c.Name, c.Trim, c.CarType, c.YearBuilt AS car_year,
+    c.designcost AS car_designcost, c.ModAmount, c.ParentCarID,
+    c.Engine_ID, c.Chassis_ID, c.Gearbox_ID,
+    c.Spec_HP, c.Spec_Torque, c.Spec_RPM, c.Spec_Weight,
+    c.Spec_TopSpeed, c.Spec_Fuel,
+    c.Spec_AccellerationSix, c.Spec_AccellerationHund,
+    c.Rating_Performance, c.Rating_Drivability, c.Rating_Luxury, c.Rating_Safety,
+    e.bore, e.stroke, e.CylinderNumberForCalculations AS cylinders,
+    e.hp AS engine_hp, e.torque AS engine_torque, e.rpm AS engine_rpm,
+    e.weight AS engine_weight, e.size_cc, e.fuelmilage,
+    e.yearbuilt AS engine_year, e.ModYear AS engine_mod_year, e.designcost AS engine_designcost,
+    e.StaticenginePower, e.StaticengineFuelEco, e.StaticengineReliability, e.StaticRating_Smooth,
+    e.enginePower, e.engineFuelEco, e.engineReliability, e.Rating_Smooth,
+    ch.ChassisWeightKG, ch.ChassisLengthCM, ch.ChassisWidthCM,
+    ch.YearBuilt AS chassis_year, ch.ModYear AS chassis_mod_year, ch.Design_Cost AS chassis_designcost,
+    ch.StaticOverallStrength, ch.StaticOverallComfort, ch.StaticOverallPerformance, ch.StaticOverallDependabilty,
+    ch.Overall_Strength, ch.Overall_Comfort, ch.Overall_Performance, ch.Overall_Dependabilty,
+    g.Gears, g.GearboxType, g.LoRatio, g.HiRatio, g.MaxTorqueInput, g.Weight AS gearbox_weight,
+    g.YearBuilt AS gearbox_year, g.ModYear AS gearbox_mod_year, g.Design_Cost AS gearbox_designcost,
+    g.StaticPowerRating, g.StaticFuelRating, g.StaticPerformanceRating,
+    g.StaticReliabiltyRating, g.StaticComfortRating,
+    g.PowerRating, g.FuelRating, g.PerformanceRating, g.ReliabiltyRating, g.ComfortRating
+FROM CarInfo c
+JOIN EngineInfo e ON c.Engine_ID = e.Engine_ID
+JOIN ChassisInfo ch ON c.Chassis_ID = ch.Chassis_ID
+JOIN GearboxInfo g ON c.Gearbox_ID = g.Gearbox_ID
+WHERE c.Company_ID = (SELECT Player_Data FROM PlayerInfo WHERE Player_Varible = 'Company_ID')
+  AND c.Status = 0
+LIMIT 20;
+"""
+    # 현재 연도 조회
+    year_sql = "SELECT GameInfo_Data FROM GameInfo WHERE GameInfo_Varible = 'Current_Year';"
+
+    design_context = ""
+    rows = []
+    current_year = 1900
+
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+
+        # 현재 연도
+        cursor = conn.execute(year_sql)
+        year_row = cursor.fetchone()
+        if year_row:
+            try:
+                current_year = int(year_row[0])
+            except (ValueError, TypeError):
+                pass
+
+        # 차량 데이터
+        cursor = conn.execute(design_sql)
+        rows = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+
+        if rows:
+            df = pd.DataFrame(rows)
+            design_context = df.to_markdown(index=False)
+        else:
+            design_context = "(플레이어 소유 활성 차량 없음)"
+
+    except Exception as e:
+        design_context = f"(SQL 오류: {e})"
+
+    # ── Step 2: Python 계산 ──
+    calc_results = ""
+    try:
+        all_reports = []
+        for row in rows:
+            # 데이터클래스 구성
+            engine = EngineParams(
+                engine_id=row.get("Engine_ID", 0),
+                bore=row.get("bore", 0) or 0,
+                stroke=row.get("stroke", 0) or 0,
+                cylinders=row.get("cylinders", 0) or 0,
+                hp=row.get("engine_hp", 0) or 0,
+                torque=row.get("engine_torque", 0) or 0,
+                rpm=row.get("engine_rpm", 0) or 0,
+                weight=row.get("engine_weight", 0) or 0,
+                size_cc=row.get("size_cc", 0) or 0,
+                fuel_milage=row.get("fuelmilage", 0) or 0,
+                year_built=row.get("engine_year", 0) or 0,
+                mod_year=row.get("engine_mod_year", 0) or 0,
+                design_cost=row.get("engine_designcost", 0) or 0,
+                static_power=row.get("StaticenginePower", 0) or 0,
+                static_fuel_eco=row.get("StaticengineFuelEco", 0) or 0,
+                static_reliability=row.get("StaticengineReliability", 0) or 0,
+                static_smooth=row.get("StaticRating_Smooth", 0) or 0,
+                current_power=row.get("enginePower", 0) or 0,
+                current_fuel_eco=row.get("engineFuelEco", 0) or 0,
+                current_reliability=row.get("engineReliability", 0) or 0,
+                current_smooth=row.get("Rating_Smooth", 0) or 0,
+            )
+
+            vehicle = VehicleParams(
+                car_id=row.get("Car_ID", 0),
+                name=row.get("Name", ""),
+                trim=row.get("Trim", ""),
+                car_type=row.get("CarType", ""),
+                year_built=row.get("car_year", 0) or 0,
+                design_cost=row.get("car_designcost", 0) or 0,
+                mod_amount=row.get("ModAmount", 0) or 0,
+                parent_car_id=row.get("ParentCarID", -1) or -1,
+                engine_id=row.get("Engine_ID", 0),
+                chassis_id=row.get("Chassis_ID", 0),
+                gearbox_id=row.get("Gearbox_ID", 0),
+                spec_hp=row.get("Spec_HP", 0) or 0,
+                spec_torque=row.get("Spec_Torque", 0) or 0,
+                spec_rpm=row.get("Spec_RPM", 0) or 0,
+                spec_weight=row.get("Spec_Weight", 0) or 0,
+                spec_top_speed=row.get("Spec_TopSpeed", 0) or 0,
+                spec_fuel=row.get("Spec_Fuel", 0) or 0,
+                rating_performance=row.get("Rating_Performance", 0) or 0,
+                rating_drivability=row.get("Rating_Drivability", 0) or 0,
+                rating_luxury=row.get("Rating_Luxury", 0) or 0,
+                rating_safety=row.get("Rating_Safety", 0) or 0,
+            )
+
+            # 노후화
+            engine_effective_year = engine.mod_year if engine.mod_year > engine.year_built else engine.year_built
+            chassis_year = row.get("chassis_year", 0) or 0
+            chassis_mod_year = row.get("chassis_mod_year", 0) or 0
+            chassis_effective = chassis_mod_year if chassis_mod_year > chassis_year else chassis_year
+            gearbox_year = row.get("gearbox_year", 0) or 0
+            gearbox_mod_year = row.get("gearbox_mod_year", 0) or 0
+            gearbox_effective = gearbox_mod_year if gearbox_mod_year > gearbox_year else gearbox_year
+
+            staleness = calc_staleness(
+                current_year, vehicle.year_built,
+                engine_effective_year, chassis_effective, gearbox_effective,
+            )
+
+            # 개선 비용 (4가지 시나리오)
+            mod_base = estimate_modification_cost(vehicle.design_cost)
+            mod_engine = estimate_modification_cost(vehicle.design_cost, engine_change=True)
+            mod_gearbox = estimate_modification_cost(vehicle.design_cost, gearbox_change=True)
+            mod_chassis = estimate_modification_cost(vehicle.design_cost, chassis_change=True)
+            mod_costs = {
+                "cost_breakdown_text": (
+                    f"기본 New Gen: ${mod_base['estimated_cost']:,} ({mod_base['total_percent']}%)\n"
+                    f"+ 엔진 변경: ${mod_engine['estimated_cost']:,} ({mod_engine['total_percent']}%)\n"
+                    f"+ 기어박스만: ${mod_gearbox['estimated_cost']:,} ({mod_gearbox['total_percent']}%)\n"
+                    f"+ 샤시 변경: ${mod_chassis['estimated_cost']:,} ({mod_chassis['total_percent']}%)"
+                ),
+            }
+
+            # 토크 호환성
+            torque_check = check_torque_compatibility(
+                engine.torque, row.get("MaxTorqueInput", 0) or 0,
+            )
+
+            # 엔진 레이팅 변화
+            engine_rating_deltas = compare_ratings(
+                {"Power": engine.static_power, "FuelEco": engine.static_fuel_eco,
+                 "Reliability": engine.static_reliability, "Smooth": engine.static_smooth},
+                {"Power": engine.current_power, "FuelEco": engine.current_fuel_eco,
+                 "Reliability": engine.current_reliability, "Smooth": engine.current_smooth},
+            )
+
+            # 샤시 레이팅 변화
+            chassis_rating_deltas = compare_ratings(
+                {"Strength": row.get("StaticOverallStrength", 0) or 0,
+                 "Comfort": row.get("StaticOverallComfort", 0) or 0,
+                 "Performance": row.get("StaticOverallPerformance", 0) or 0,
+                 "Dependability": row.get("StaticOverallDependabilty", 0) or 0},
+                {"Strength": row.get("Overall_Strength", 0) or 0,
+                 "Comfort": row.get("Overall_Comfort", 0) or 0,
+                 "Performance": row.get("Overall_Performance", 0) or 0,
+                 "Dependability": row.get("Overall_Dependabilty", 0) or 0},
+            )
+
+            # 보어 시뮬레이션 (+5mm)
+            bore_sim = None
+            if engine.bore > 0:
+                bore_sim = simulate_bore_change(engine, engine.bore + 5)
+
+            report = format_design_report(
+                vehicle=vehicle,
+                staleness=staleness,
+                mod_costs=mod_costs,
+                torque_check=torque_check,
+                rating_deltas={**engine_rating_deltas, **chassis_rating_deltas},
+                bore_sim=bore_sim,
+            )
+            all_reports.append(f"--- {vehicle.name} {vehicle.trim} (ID: {vehicle.car_id}) ---\n{report}")
+
+        calc_results = "\n\n".join(all_reports) if all_reports else "(계산 대상 차량 없음)"
+
+    except Exception as e:
+        calc_results = f"(Python 계산 오류: {e})"
+
+    # ── Step 3: LLM 합성 ──
+    llm = create_llm(temperature=0.3)
+    prompt = DESIGN_ADVISOR_PROMPT.format(
+        question=state["user_question"],
+        analyst_summary=analyst_summary,
+        calc_results=calc_results,
+        design_context=design_context if len(design_context) < 8000 else design_context[:8000] + "\n...(truncated)",
+    )
+    response = llm.invoke(prompt)
+    answer = strip_think_tags(response.content)
+
+    return {
+        "final_answer": answer,
+        "design_calc_results": calc_results,
+        "design_context": design_context,
+    }
 
 
 # ── 그래프 구성 ──────────────────────────────────────────────────
@@ -400,6 +1070,15 @@ def build_graph() -> StateGraph:
     graph.add_node("retry", retry_node)
     graph.add_node("advance", advance_node)
     graph.add_node("analyst", analyst_node)
+
+    # 전략 분석 파이프라인 노드
+    graph.add_node("classifier", classifier_node)
+    graph.add_node("strategist", strategist_node)
+    graph.add_node("strategy_evaluator", strategy_evaluator_node)
+    graph.add_node("aggregator", aggregator_node)
+
+    # 설계 자문 파이프라인 노드
+    graph.add_node("design_advisor", design_advisor_node)
 
     # 엣지 연결
     graph.set_entry_point("planner")
@@ -424,8 +1103,25 @@ def build_graph() -> StateGraph:
     # advance → load_schema (다음 서브쿼리용 스키마 로드)
     graph.add_edge("advance", "load_schema")
 
-    # analyst → END
-    graph.add_edge("analyst", END)
+    # analyst → classifier (전략 분석 파이프라인 진입)
+    graph.add_edge("analyst", "classifier")
+
+    # classifier: design → design_advisor, strategic → strategist, 나머지 → END
+    graph.add_conditional_edges("classifier", classifier_router, {
+        "design_advisor": "design_advisor",
+        "strategist": "strategist",
+        END: END,
+    })
+
+    # design_advisor → END
+    graph.add_edge("design_advisor", END)
+
+    # strategist → fan_out → 병렬 evaluators
+    graph.add_conditional_edges("strategist", fan_out_strategies, ["strategy_evaluator"])
+
+    # evaluators → aggregator → END
+    graph.add_edge("strategy_evaluator", "aggregator")
+    graph.add_edge("aggregator", END)
 
     return graph
 
@@ -451,6 +1147,12 @@ def run_query(question: str, db_path: Path) -> str:
         "final_answer": "",
         "max_retries": MAX_RETRIES,
         "error_log": [],
+        "question_type": "",
+        "analyst_summary": "",
+        "strategy_candidates": [],
+        "strategy_evaluations": [],
+        "design_calc_results": "",
+        "design_context": "",
     }
 
     result = app.invoke(initial_state)
@@ -464,6 +1166,13 @@ TEST_QUERIES = [
     {"label": "Q2. 가장 많이 팔린 차", "query": "내 회사에서 역대 가장 많이 팔린 자동차 모델 상위 5개를 알려줘."},
     {"label": "Q3. 공장 현황", "query": "내 공장 목록과 각 공장의 위치, 생산 라인 수를 알려줘."},
     {"label": "Q4. 복합 분석", "query": "내 회사의 차종별 월 판매량과 마진율을 비교 분석해줘."},
+    {"label": "Q5. 전략 분석", "query": "수익성을 높이려면 어떻게 해야 할까? 가격, 생산, 판매 전략을 종합적으로 분석해줘."},
+    {"label": "Q6. 확장 전략", "query": "새로운 도시로 확장해야 할까, 아니면 기존 시장에서 점유율을 높여야 할까?"},
+    {"label": "Q7. 보어 변경 시뮬레이션", "query": "내 엔진의 보어를 5mm 늘리면 마력이 얼마나 올라?"},
+    {"label": "Q8. 개선 비용 추정", "query": "내 차를 개선(새 세대)하면 비용이 얼마나 들어? 엔진도 바꾸면?"},
+    {"label": "Q9. 노후화 분석", "query": "내 차와 부품들이 얼마나 오래됐어? 언제 리프레시해야 해?"},
+    {"label": "Q10. 종합 개선 추천", "query": "내 차의 성능을 개선하려면 어떤 부품을 바꾸는 게 가장 효율적이야?"},
+    {"label": "Q11. 토크 호환성", "query": "내 엔진 토크가 변속기 최대 토크보다 큰 차가 있어?"},
 ]
 
 

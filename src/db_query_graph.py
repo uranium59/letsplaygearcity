@@ -46,6 +46,7 @@ from src.design_formulas import (
     estimate_modification_cost,
     format_design_report,
 )
+from src.event_timeline import get_timeline
 
 load_dotenv()
 
@@ -128,6 +129,8 @@ class GraphState(TypedDict):
     # 설계 자문 파이프라인 필드
     design_calc_results: str  # Python 계산 결과 (포맷된 텍스트)
     design_context: str  # 설계 관련 추가 SQL 결과
+    # 이벤트 예측 파이프라인 필드
+    forecast_context: str  # 전쟁/경제 이벤트 예측 + 자산 위험 분석
 
 
 # ── 스키마 파싱 유틸리티 ─────────────────────────────────────────
@@ -198,6 +201,73 @@ def create_llm(temperature: float = 0) -> ChatOllama:
     return ChatOllama(model=MODEL_NAME, temperature=temperature)
 
 
+# ── 사전 라우터 (키워드 기반, LLM 호출 없음) ──────────────────────
+
+# forecast 키워드: 전쟁, 경제위기, 이벤트 예측, 안전 도시 등
+_FORECAST_KW_STRONG = [
+    # 강한 시그널 (단독으로 충분)
+    "전쟁", "대공황", "세계대전", "safe haven", "safe city", "안전한 도시",
+    "world war", "wwi", "wwii", "korean war",
+]
+_FORECAST_KW_WEAK = [
+    # 약한 시그널 (조합 필요)
+    "war", "침체", "recession", "depression",
+    "유가", "oil", "gas price", "금리", "interest rate",
+    "이벤트", "event", "위기", "crisis", "폭등", "폭락",
+    "forecast", "예측", "전망", "outlook", "앞으로",
+    "위험", "risk", "conflict", "govern", "factor", "공장",
+    "경기", "경제", "economy", "recession", "downturn",
+]
+
+# design 키워드: 차량/엔진/샤시/기어박스 설계
+_DESIGN_KW_STRONG = [
+    "보어", "bore", "스트로크", "stroke", "배기량", "displacement",
+    "노후", "staleness", "리프레시", "refresh",
+    "개선", "modification", "new generation",
+]
+_DESIGN_KW_WEAK = [
+    "마력", "horsepower", "hp", "토크", "torque",
+    "샤시", "chassis", "기어박스", "gearbox", "변속기", "transmission",
+    "설계", "design", "호환", "compatible", "compatibility",
+    "엔진", "engine", "upgrade", "비용", "cost",
+    "aging", "component", "부품",
+]
+
+
+def pre_router_node(state: GraphState) -> dict:
+    """키워드 기반 사전 분류. forecast/design이면 SQL 파이프라인 우회."""
+    q = state["user_question"].lower()
+
+    # 강한 키워드 1개 = 2점, 약한 키워드 1개 = 1점
+    forecast_score = (
+        sum(2 for kw in _FORECAST_KW_STRONG if kw in q)
+        + sum(1 for kw in _FORECAST_KW_WEAK if kw in q)
+    )
+    design_score = (
+        sum(2 for kw in _DESIGN_KW_STRONG if kw in q)
+        + sum(1 for kw in _DESIGN_KW_WEAK if kw in q)
+    )
+
+    # 2점 이상이면 분류 확정
+    if forecast_score >= 2 and forecast_score >= design_score:
+        return {"question_type": "forecast"}
+    if design_score >= 2 and design_score > forecast_score:
+        return {"question_type": "design"}
+
+    # 매치 부족 → SQL 파이프라인으로 진행 (기존 경로)
+    return {"question_type": ""}
+
+
+def pre_router_router(state: GraphState) -> str:
+    """사전 분류 결과에 따라 직행 또는 SQL 파이프라인으로 라우팅."""
+    qtype = state.get("question_type", "")
+    if qtype == "forecast":
+        return "forecast_advisor"
+    if qtype == "design":
+        return "design_advisor"
+    return "planner"
+
+
 # ── 노드 함수들 ─────────────────────────────────────────────────
 
 PLANNER_PROMPT = """\
@@ -210,10 +280,11 @@ Your job is to break down the user's question into 1-5 sub-queries that can each
 ## KEY SCHEMA HINTS
 - PlayerInfo is a KEY-VALUE table: Player_Varible / Player_Data. Rows: Company_Name, Player_Name, Company_ID.
   → Player company ID: SELECT Player_Data FROM PlayerInfo WHERE Player_Varible = 'Company_ID'
-- GameInfo is a KEY-VALUE table: GameInfo_Varible / GameInfo_Data. Rows include: Current_Year, Current_Turn, Starting_Year.
+- GameInfo is a KEY-VALUE table: GameInfo_Varible / GameInfo_Data. Rows include: Current_Year, Current_Turn (= current month 1-12, since 1 turn = 1 month), Starting_Year.
 - CompanyList: ID = company ID, COMPANY_NAME, FUNDS_ONHAND = cash.
 - CarInfo: Car_ID, Company_ID, Name, Trim, CarType, sellprice, unitcost, sold_all_time, Rating_Overall.
 - CarDistro: per-city sales. Company_ID, City_ID, Car_ID, SellPrice, Sold_This_Month, Possible_Sales.
+- NOTE: In GearCity, 1 turn = 1 month. "Current_Turn" means current month (1-12) within Current_Year.
 - FactoryInfo: Factory_ID, Company_ID, City_ID, CarsInProduction, MaxCarsInProduction.
 - CarManufactor: production lines per factory. Factory_ID, Lines, Car_ID, Current_Employees, Unit_Cost.
 - CitiesInfo: City_ID, City_NAME, City_COUNTRY, City_POPULATION.
@@ -306,6 +377,7 @@ Write a single SELECT query to answer the question below.
 - Use LIMIT 20 unless the question needs all rows.
 - PlayerInfo is KEY-VALUE: SELECT Player_Data FROM PlayerInfo WHERE Player_Varible = 'Company_ID'
 - GameInfo is KEY-VALUE: SELECT GameInfo_Data FROM GameInfo WHERE GameInfo_Varible = 'Current_Year'
+- Current_Turn in GameInfo = current month (1-12). 1 turn = 1 month in GearCity.
 - To filter by player company, use subquery: Company_ID = (SELECT Player_Data FROM PlayerInfo WHERE Player_Varible = 'Company_ID')
 
 ## Question
@@ -421,12 +493,13 @@ Keep the response concise but thorough."""
 
 CLASSIFIER_PROMPT = """\
 You are a question classifier for a GearCity business analysis system.
-Classify the user's question into exactly one of four categories:
+Classify the user's question into exactly one of five categories:
 
 - **factual**: Simple data lookup (e.g., "How much cash do I have?", "What year is it?")
 - **analytical**: Data comparison or trend analysis, but no strategic recommendation needed (e.g., "Compare margins by car model", "Show sales trends")
 - **strategic**: Requires strategic recommendations, action plans, or "what should I do?" decisions (e.g., "How can I improve profitability?", "Should I expand to new cities?")
 - **design**: Questions about vehicle/component design parameters, "what if" simulations, modification/improvement costs, staleness/aging analysis, or design refresh timing (e.g., "What if I increase bore by 5mm?", "How much to upgrade my car?", "How old are my components?", "Is my engine torque compatible with the gearbox?")
+- **forecast**: Questions about future wars, economic crises, global events, or risk to player assets from upcoming conflicts (e.g., "Will there be a war soon?", "Is my factory safe?", "When is the next recession?", "Which cities will be affected by war?", "What global events are coming?")
 
 ## User Question
 {question}
@@ -434,19 +507,23 @@ Classify the user's question into exactly one of four categories:
 ## Analyst Summary
 {analyst_summary}
 
-Output ONLY one word: factual, analytical, strategic, or design
+Output ONLY one word: factual, analytical, strategic, design, or forecast
 No explanations, no extra text."""
 
 
 STRATEGIST_PROMPT = """\
 You are a strategic advisor for GearCity, a car company management simulation game.
 Based on the analyst's data summary, generate 2-4 distinct strategic options the player could pursue.
+IMPORTANT: Consider upcoming global events (wars, recessions) when formulating strategies.
 
 ## User Question
 {question}
 
 ## Data Analysis Summary
 {analyst_summary}
+
+## Upcoming Global Events (next 15 years)
+{event_forecast}
 
 ## Available Tables for Further Analysis
 {catalog}
@@ -479,6 +556,7 @@ Write a single SELECT query to answer the question below.
 - Use LIMIT 20 unless the question needs all rows.
 - PlayerInfo is KEY-VALUE: SELECT Player_Data FROM PlayerInfo WHERE Player_Varible = 'Company_ID'
 - GameInfo is KEY-VALUE: SELECT GameInfo_Data FROM GameInfo WHERE GameInfo_Varible = 'Current_Year'
+- Current_Turn in GameInfo = current month (1-12). 1 turn = 1 month in GearCity.
 - To filter by player company, use subquery: Company_ID = (SELECT Player_Data FROM PlayerInfo WHERE Player_Varible = 'Company_ID')
 
 ## Question
@@ -584,8 +662,10 @@ def classifier_node(state: GraphState) -> dict:
     response = llm.invoke(prompt)
     raw = strip_think_tags(response.content).strip().lower()
 
-    # robust 파싱: design/strategic/analytical/factual 키워드 탐색
-    if "design" in raw:
+    # robust 파싱: forecast/design/strategic/analytical/factual 키워드 탐색
+    if "forecast" in raw:
+        qtype = "forecast"
+    elif "design" in raw:
         qtype = "design"
     elif "strategic" in raw:
         qtype = "strategic"
@@ -598,7 +678,9 @@ def classifier_node(state: GraphState) -> dict:
 
 
 def classifier_router(state: GraphState) -> str:
-    """strategic → strategist, design → design_advisor, 나머지 → END."""
+    """forecast → forecast_advisor, design → design_advisor, strategic → strategist, 나머지 → END."""
+    if state.get("question_type") == "forecast":
+        return "forecast_advisor"
     if state.get("question_type") == "design":
         return "design_advisor"
     if state.get("question_type") == "strategic":
@@ -611,9 +693,26 @@ def strategist_node(state: GraphState) -> dict:
     llm = create_llm(temperature=0.5)
     catalog = build_table_catalog()
 
+    # 이벤트 예측 컨텍스트 주입
+    event_forecast = "(이벤트 데이터 없음)"
+    try:
+        tl = get_timeline()
+        # DB에서 현재 연도 조회
+        conn = sqlite3.connect(f"file:{state['db_path']}?mode=ro", uri=True)
+        cursor = conn.execute(
+            "SELECT GameInfo_Data FROM GameInfo WHERE GameInfo_Varible = 'Current_Year';"
+        )
+        row = cursor.fetchone()
+        conn.close()
+        current_year = int(row[0]) if row else 1900
+        event_forecast = tl.format_forecast_summary(current_year, lookahead=15)
+    except Exception:
+        pass
+
     prompt = STRATEGIST_PROMPT.format(
         question=state["user_question"],
         analyst_summary=state.get("analyst_summary", ""),
+        event_forecast=event_forecast,
         catalog=catalog,
     )
     response = llm.invoke(prompt)
@@ -1056,6 +1155,130 @@ LIMIT 20;
     }
 
 
+# ── 이벤트 예측 파이프라인 ─────────────────────────────────────────
+
+FORECAST_ADVISOR_PROMPT = """\
+You are a GearCity strategic forecaster with access to the game's complete historical event timeline.
+GearCity simulates real-world history: wars, recessions, oil crises all happen at historically accurate times.
+
+## Key Game Mechanics for Wars
+- **TOTAL_WAR** (gov=-2): No sales possible, factories may be damaged/destroyed
+- **WAR** (gov=-1): No sales possible in that city
+- **LIMITED** (gov=0): Sales reduced by 50%
+- **STABLE** (gov=1): Normal operations
+
+## Key Game Mechanics for Economy
+- **buyrate**: Global demand multiplier. 1.0 = normal, < 0.90 = recession, < 0.80 = depression
+- **gas**: Fuel price. > 2.0 = expensive, affects fuel-efficient car demand
+- **interest**: Loan interest multiplier. > 1.06 = expensive borrowing
+- **stockrate**: Stock market multiplier. < 0.90 = market crash
+
+## User Question
+{question}
+
+## Analyst Summary (from SQL data)
+{analyst_summary}
+
+## Event Forecast (from TurnEvents.xml)
+{forecast_summary}
+
+## Player Asset Risk Analysis
+{asset_risk_report}
+
+## Instructions
+1. Directly answer the user's question about future events, wars, or economic outlook
+2. Be SPECIFIC about dates: exact years and months when events start/end
+3. If the player has assets in at-risk cities, prioritize warning about those
+4. Recommend concrete actions: when to sell factories, when to build in safe cities, when to stockpile cash
+5. For economic events, suggest timing for expansion vs. conservation
+6. Answer in the same language as the user's question
+7. Reference the specific data (don't generalize - use exact numbers and dates)"""
+
+
+def forecast_advisor_node(state: GraphState) -> dict:
+    """이벤트 예측 노드: 타임라인 데이터 로드 → 플레이어 자산 위험 분석 → LLM 합성."""
+    db_path = state["db_path"]
+    analyst_summary = state.get("analyst_summary", "")
+
+    # ── Step 1: 현재 연도 + 플레이어 자산 도시 목록 조회 ──
+    current_year = 1900
+    current_month = 1
+    player_city_ids = []
+
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+
+        # 현재 연도/월
+        cursor = conn.execute(
+            "SELECT GameInfo_Data FROM GameInfo WHERE GameInfo_Varible = 'Current_Year';"
+        )
+        row = cursor.fetchone()
+        if row:
+            try:
+                current_year = int(row[0])
+            except (ValueError, TypeError):
+                pass
+
+        cursor = conn.execute(
+            "SELECT GameInfo_Data FROM GameInfo WHERE GameInfo_Varible = 'Current_Turn';"
+        )
+        row = cursor.fetchone()
+        if row:
+            try:
+                current_month = int(row[0])
+            except (ValueError, TypeError):
+                pass
+
+        # 플레이어 공장/지점 도시 목록
+        company_id_sql = "SELECT Player_Data FROM PlayerInfo WHERE Player_Varible = 'Company_ID'"
+        cursor = conn.execute(f"""
+            SELECT DISTINCT City_ID FROM FactoryInfo
+            WHERE Company_ID = ({company_id_sql})
+            UNION
+            SELECT DISTINCT City_ID FROM CarDistro
+            WHERE Company_ID = ({company_id_sql}) AND Sold_This_Month > 0
+        """)
+        player_city_ids = [r[0] for r in cursor.fetchall()]
+        conn.close()
+
+    except Exception:
+        pass  # 조회 실패 시 빈 목록으로 진행
+
+    # ── Step 2: 타임라인 데이터 로드 + 분석 ──
+    forecast_summary = ""
+    asset_risk_report = ""
+
+    try:
+        tl = get_timeline()
+        forecast_summary = tl.format_forecast_summary(current_year, lookahead=15)
+
+        if player_city_ids:
+            risks = tl.check_player_asset_risks(player_city_ids, current_year, lookahead=15)
+            asset_risk_report = tl.format_asset_risk_report(risks, current_year)
+        else:
+            asset_risk_report = "(플레이어 자산 도시 정보 없음 — 아직 공장/판매점이 없거나 게임 초기 상태)"
+
+    except Exception as e:
+        forecast_summary = f"(타임라인 데이터 로드 실패: {e})"
+        asset_risk_report = "(위험 분석 불가)"
+
+    # ── Step 3: LLM 합성 ──
+    llm = create_llm(temperature=0.3)
+    prompt = FORECAST_ADVISOR_PROMPT.format(
+        question=state["user_question"],
+        analyst_summary=analyst_summary,
+        forecast_summary=forecast_summary,
+        asset_risk_report=asset_risk_report,
+    )
+    response = llm.invoke(prompt)
+    answer = strip_think_tags(response.content)
+
+    return {
+        "final_answer": answer,
+        "forecast_context": forecast_summary + "\n\n" + asset_risk_report,
+    }
+
+
 # ── 그래프 구성 ──────────────────────────────────────────────────
 
 def build_graph() -> StateGraph:
@@ -1080,8 +1303,21 @@ def build_graph() -> StateGraph:
     # 설계 자문 파이프라인 노드
     graph.add_node("design_advisor", design_advisor_node)
 
+    # 이벤트 예측 파이프라인 노드
+    graph.add_node("forecast_advisor", forecast_advisor_node)
+
+    # 사전 라우터 (키워드 기반, LLM 호출 없음)
+    graph.add_node("pre_router", pre_router_node)
+
     # 엣지 연결
-    graph.set_entry_point("planner")
+    graph.set_entry_point("pre_router")
+
+    # pre_router: forecast/design → 직행, 나머지 → planner (SQL 파이프라인)
+    graph.add_conditional_edges("pre_router", pre_router_router, {
+        "forecast_advisor": "forecast_advisor",
+        "design_advisor": "design_advisor",
+        "planner": "planner",
+    })
     graph.add_edge("planner", "load_schema")
     graph.add_edge("load_schema", "sql_generator")
     graph.add_edge("sql_generator", "executor")
@@ -1106,12 +1342,16 @@ def build_graph() -> StateGraph:
     # analyst → classifier (전략 분석 파이프라인 진입)
     graph.add_edge("analyst", "classifier")
 
-    # classifier: design → design_advisor, strategic → strategist, 나머지 → END
+    # classifier: forecast/design/strategic → 전용 노드, 나머지 → END
     graph.add_conditional_edges("classifier", classifier_router, {
+        "forecast_advisor": "forecast_advisor",
         "design_advisor": "design_advisor",
         "strategist": "strategist",
         END: END,
     })
+
+    # forecast_advisor → END
+    graph.add_edge("forecast_advisor", END)
 
     # design_advisor → END
     graph.add_edge("design_advisor", END)
@@ -1153,6 +1393,7 @@ def run_query(question: str, db_path: Path) -> str:
         "strategy_evaluations": [],
         "design_calc_results": "",
         "design_context": "",
+        "forecast_context": "",
     }
 
     result = app.invoke(initial_state)
@@ -1162,7 +1403,7 @@ def run_query(question: str, db_path: Path) -> str:
 # ── 테스트 쿼리 ──────────────────────────────────────────────────
 
 TEST_QUERIES = [
-    {"label": "Q1. 현재 게임 날짜와 현금", "query": "현재 게임 연도와 턴, 그리고 내 회사의 현금 보유액을 알려줘."},
+    {"label": "Q1. 현재 게임 날짜와 현금", "query": "현재 게임 연도와 월, 그리고 내 회사의 현금 보유액을 알려줘."},
     {"label": "Q2. 가장 많이 팔린 차", "query": "내 회사에서 역대 가장 많이 팔린 자동차 모델 상위 5개를 알려줘."},
     {"label": "Q3. 공장 현황", "query": "내 공장 목록과 각 공장의 위치, 생산 라인 수를 알려줘."},
     {"label": "Q4. 복합 분석", "query": "내 회사의 차종별 월 판매량과 마진율을 비교 분석해줘."},
@@ -1173,6 +1414,10 @@ TEST_QUERIES = [
     {"label": "Q9. 노후화 분석", "query": "내 차와 부품들이 얼마나 오래됐어? 언제 리프레시해야 해?"},
     {"label": "Q10. 종합 개선 추천", "query": "내 차의 성능을 개선하려면 어떤 부품을 바꾸는 게 가장 효율적이야?"},
     {"label": "Q11. 토크 호환성", "query": "내 엔진 토크가 변속기 최대 토크보다 큰 차가 있어?"},
+    {"label": "Q12. 전쟁 예측", "query": "앞으로 전쟁이 일어날 도시가 있어? 내 공장이 위험한 곳에 있어?"},
+    {"label": "Q13. 경제 전망", "query": "앞으로 경기 침체나 유가 폭등이 언제 오는지 알려줘."},
+    {"label": "Q14. 안전 도시", "query": "전쟁이 절대 일어나지 않는 안전한 도시는 어디야?"},
+    {"label": "Q15. 확장+이벤트", "query": "새 공장을 지을 도시를 추천해줘. 전쟁 위험과 경제 전망을 고려해서."},
 ]
 
 

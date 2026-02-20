@@ -1,0 +1,5175 @@
+{
+ "source": "TurnEvents.xml (Base City Map)",
+ "year_range": [
+  1899,
+  2019
+ ],
+ "total_cities": 205,
+ "cities_with_conflicts": 196,
+ "safe_havens": [
+  {
+   "id": 54,
+   "name": "Quito",
+   "country": "Ecuador"
+  },
+  {
+   "id": 55,
+   "name": "Lima",
+   "country": "Peru"
+  },
+  {
+   "id": 56,
+   "name": "Santiago",
+   "country": "Chile"
+  },
+  {
+   "id": 57,
+   "name": "Córdoba",
+   "country": "Argentina"
+  },
+  {
+   "id": 58,
+   "name": "Buenos Aires",
+   "country": "Argentina"
+  },
+  {
+   "id": 59,
+   "name": "Montevideo",
+   "country": "Uruguay"
+  },
+  {
+   "id": 96,
+   "name": "Zürich",
+   "country": "Switzerland"
+  },
+  {
+   "id": 105,
+   "name": "Gothenburg",
+   "country": "Sweden"
+  },
+  {
+   "id": 106,
+   "name": "Stockholm",
+   "country": "Sweden"
+  }
+ ],
+ "economic_timeline": {
+  "1899": {},
+  "1900": {
+   "buyrate": 1.0,
+   "gas": 1.5,
+   "interest": 1.02,
+   "stockrate": 1.0,
+   "carprice": 1.4
+  },
+  "1901": {
+   "buyrate": 1.04,
+   "gas": 1.4943,
+   "interest": 1.02626,
+   "carprice": 1.4129,
+   "stockrate": 0.8
+  },
+  "1902": {
+   "buyrate": 1.08,
+   "gas": 1.48861,
+   "interest": 1.03108,
+   "stockrate": 1.0,
+   "carprice": 1.42581
+  },
+  "1903": {
+   "buyrate": 1.07541,
+   "gas": 1.48291,
+   "interest": 1.02008,
+   "carprice": 1.43871
+  },
+  "1904": {
+   "buyrate": 1.0056,
+   "gas": 1.47722,
+   "interest": 1.01077,
+   "carprice": 1.45161
+  },
+  "1905": {
+   "buyrate": 1.06376,
+   "gas": 1.47152,
+   "interest": 1.02,
+   "carprice": 1.46452
+  },
+  "1906": {
+   "buyrate": 1.2,
+   "gas": 1.46582,
+   "interest": 1.02923,
+   "carprice": 1.47742
+  },
+  "1907": {
+   "buyrate": 1.2,
+   "gas": 1.46013,
+   "interest": 1.03846,
+   "carprice": 1.49032,
+   "stockrate": 0.8
+  },
+  "1908": {
+   "buyrate": 0.770833,
+   "gas": 1.45443,
+   "interest": 1.01129,
+   "stockrate": 0.846154,
+   "carprice": 1.38492
+  },
+  "1909": {
+   "buyrate": 1.00313,
+   "gas": 1.44873,
+   "interest": 1.01479,
+   "carprice": 1.32459
+  },
+  "1910": {
+   "buyrate": 1.0406,
+   "gas": 1.44304,
+   "interest": 1.01783,
+   "carprice": 1.26426
+  },
+  "1911": {
+   "buyrate": 1.0,
+   "gas": 1.43734,
+   "interest": 1.01633,
+   "carprice": 1.20393
+  },
+  "1912": {
+   "buyrate": 1.01,
+   "gas": 1.43165,
+   "interest": 1.01997,
+   "carprice": 1.14361
+  },
+  "1913": {
+   "buyrate": 1.069,
+   "gas": 1.42595,
+   "interest": 1.01964,
+   "carprice": 1.08328
+  },
+  "1914": {
+   "buyrate": 0.98,
+   "gas": 1.47279,
+   "interest": 1.01581,
+   "carprice": 1.02295
+  },
+  "1915": {
+   "buyrate": 1.00875,
+   "gas": 1.53015,
+   "interest": 1.01063,
+   "carprice": 0.962623
+  },
+  "1916": {
+   "buyrate": 1.11375,
+   "gas": 1.5875,
+   "interest": 1.01823,
+   "carprice": 0.902295
+  },
+  "1917": {
+   "buyrate": 1.21875,
+   "gas": 1.64485,
+   "interest": 1.02583,
+   "carprice": 0.841967
+  },
+  "1918": {
+   "buyrate": 1.32375,
+   "gas": 1.70221,
+   "interest": 1.03343,
+   "carprice": 0.781639
+  },
+  "1919": {
+   "buyrate": 1.11923,
+   "gas": 1.74092,
+   "interest": 1.04103,
+   "carprice": 0.721311,
+   "stockrate": 0.993333
+  },
+  "1920": {
+   "buyrate": 1.2,
+   "gas": 1.68646,
+   "interest": 1.04717,
+   "stockrate": 0.92,
+   "carprice": 0.660984
+  },
+  "1921": {
+   "buyrate": 1.03333,
+   "gas": 1.632,
+   "interest": 1.03717,
+   "stockrate": 0.84,
+   "carprice": 0.600656
+  },
+  "1922": {
+   "buyrate": 1.06538,
+   "gas": 1.57754,
+   "interest": 1.02833,
+   "stockrate": 0.866667,
+   "carprice": 0.540328
+  },
+  "1923": {
+   "buyrate": 1.29615,
+   "gas": 1.52308,
+   "interest": 1.031,
+   "stockrate": 1.0,
+   "carprice": 0.48
+  },
+  "1924": {
+   "buyrate": 1.23701,
+   "gas": 1.46862,
+   "interest": 1.0204,
+   "carprice": 0.464706
+  },
+  "1925": {
+   "buyrate": 1.3164,
+   "gas": 1.41415,
+   "interest": 1.02516,
+   "carprice": 0.4
+  },
+  "1926": {
+   "buyrate": 1.446,
+   "gas": 1.35969,
+   "interest": 1.02992,
+   "carprice": 0.40625
+  },
+  "1927": {
+   "buyrate": 1.43125,
+   "gas": 1.30523,
+   "interest": 1.03468,
+   "carprice": 0.4125
+  },
+  "1928": {
+   "buyrate": 1.30909,
+   "gas": 1.25077,
+   "interest": 1.03944,
+   "carprice": 0.41875
+  },
+  "1929": {
+   "buyrate": 1.25,
+   "gas": 1.19631,
+   "interest": 1.04421,
+   "carprice": 0.425,
+   "stockrate": 0.5
+  },
+  "1930": {
+   "buyrate": 0.156303,
+   "gas": 1.17333,
+   "interest": 1.0181,
+   "stockrate": 0.532813,
+   "carprice": 0.43125
+  },
+  "1931": {
+   "buyrate": 0.189908,
+   "gas": 1.21333,
+   "interest": 1.01238,
+   "stockrate": 0.664063,
+   "carprice": 0.4375
+  },
+  "1932": {
+   "buyrate": 0.235287,
+   "gas": 1.25333,
+   "interest": 1.01041,
+   "stockrate": 0.795313,
+   "carprice": 0.44375
+  },
+  "1933": {
+   "buyrate": 0.280667,
+   "gas": 1.29333,
+   "interest": 1.0111,
+   "stockrate": 0.846354,
+   "carprice": 0.45
+  },
+  "1934": {
+   "buyrate": 0.326046,
+   "gas": 1.31611,
+   "interest": 1.0118,
+   "stockrate": 0.840104,
+   "carprice": 0.45
+  },
+  "1935": {
+   "buyrate": 0.371425,
+   "gas": 1.30444,
+   "interest": 1.01249,
+   "stockrate": 0.833854,
+   "carprice": 0.45
+  },
+  "1936": {
+   "buyrate": 0.416805,
+   "gas": 1.29278,
+   "interest": 1.01319,
+   "stockrate": 0.827604,
+   "carprice": 0.45
+  },
+  "1937": {
+   "buyrate": 0.462184,
+   "gas": 1.28111,
+   "interest": 1.01388,
+   "stockrate": 0.8214,
+   "carprice": 0.45
+  },
+  "1938": {
+   "buyrate": 0.457143,
+   "gas": 1.26944,
+   "interest": 1.01458,
+   "stockrate": 0.785914,
+   "carprice": 0.45
+  },
+  "1939": {
+   "buyrate": 0.374286,
+   "gas": 1.25778,
+   "interest": 1.01528,
+   "stockrate": 0.787407,
+   "carprice": 0.45
+  },
+  "1940": {
+   "gas": 1.27899,
+   "interest": 1.01597,
+   "stockrate": 0.796296,
+   "carprice": 0.45
+  },
+  "1941": {
+   "gas": 1.36594,
+   "interest": 1.01667,
+   "carprice": 0.451351
+  },
+  "1942": {
+   "gas": 1.4529,
+   "interest": 1.01736,
+   "carprice": 0.452703
+  },
+  "1943": {
+   "gas": 1.53986,
+   "interest": 1.01806,
+   "carprice": 0.454054
+  },
+  "1944": {
+   "gas": 1.62681,
+   "interest": 1.01875,
+   "carprice": 0.455405
+  },
+  "1945": {
+   "gas": 1.71377,
+   "interest": 1.01945,
+   "carprice": 0.456757,
+   "buyrate": 0.4,
+   "stockrate": 0.82
+  },
+  "1946": {
+   "buyrate": 0.422286,
+   "gas": 1.61389,
+   "interest": 1.02014,
+   "stockrate": 0.829697,
+   "carprice": 0.458108
+  },
+  "1947": {
+   "buyrate": 0.449714,
+   "gas": 1.39167,
+   "interest": 1.02084,
+   "stockrate": 0.858788,
+   "carprice": 0.459459
+  },
+  "1948": {
+   "buyrate": 0.477143,
+   "gas": 1.28333,
+   "interest": 1.02154,
+   "stockrate": 0.887879,
+   "carprice": 0.460811
+  },
+  "1949": {
+   "buyrate": 0.490909,
+   "gas": 1.09864,
+   "interest": 1.02223,
+   "stockrate": 0.870833,
+   "carprice": 0.462162
+  },
+  "1950": {
+   "buyrate": 0.461333,
+   "gas": 1.08236,
+   "interest": 1.02293,
+   "carprice": 0.463514
+  },
+  "1951": {
+   "buyrate": 0.506667,
+   "gas": 1.06609,
+   "interest": 1.02362,
+   "carprice": 0.464865
+  },
+  "1952": {
+   "buyrate": 0.552,
+   "gas": 1.04981,
+   "interest": 1.02432,
+   "carprice": 0.466216
+  },
+  "1953": {
+   "buyrate": 0.597333,
+   "gas": 1.03353,
+   "interest": 1.02501,
+   "carprice": 0.467568,
+   "stockrate": 0.85
+  },
+  "1954": {
+   "buyrate": 0.59,
+   "gas": 1.01725,
+   "interest": 1.02571,
+   "stockrate": 0.869444,
+   "carprice": 0.468919
+  },
+  "1955": {
+   "buyrate": 0.586842,
+   "gas": 1.00097,
+   "interest": 1.02641,
+   "stockrate": 0.901961,
+   "carprice": 0.47027
+  },
+  "1956": {
+   "buyrate": 0.612105,
+   "gas": 0.98469,
+   "interest": 1.0271,
+   "stockrate": 0.92549,
+   "carprice": 0.471622
+  },
+  "1957": {
+   "buyrate": 0.637368,
+   "gas": 0.968411,
+   "interest": 1.0278,
+   "stockrate": 0.94902,
+   "carprice": 0.472973
+  },
+  "1958": {
+   "buyrate": 0.603333,
+   "gas": 0.952132,
+   "interest": 1.02849,
+   "stockrate": 0.972549,
+   "carprice": 0.474324
+  },
+  "1959": {
+   "buyrate": 0.601818,
+   "gas": 0.935853,
+   "interest": 1.02919,
+   "stockrate": 0.996078,
+   "carprice": 0.475676
+  },
+  "1960": {
+   "buyrate": 0.634545,
+   "gas": 0.919574,
+   "interest": 1.02988,
+   "carprice": 0.477027
+  },
+  "1961": {
+   "buyrate": 0.603636,
+   "gas": 0.903295,
+   "interest": 1.03559,
+   "carprice": 0.478378,
+   "stockrate": 1.0
+  },
+  "1962": {
+   "buyrate": 0.607971,
+   "gas": 0.887016,
+   "interest": 1.0423,
+   "stockrate": 0.966667,
+   "carprice": 0.47973
+  },
+  "1963": {
+   "buyrate": 0.616667,
+   "gas": 0.870736,
+   "interest": 1.04901,
+   "carprice": 0.481081
+  },
+  "1964": {
+   "buyrate": 0.625362,
+   "gas": 0.854457,
+   "interest": 1.05572,
+   "carprice": 0.482432
+  },
+  "1965": {
+   "buyrate": 0.634058,
+   "gas": 0.838178,
+   "interest": 1.06243,
+   "carprice": 0.483784
+  },
+  "1966": {
+   "buyrate": 0.642754,
+   "gas": 0.821899,
+   "interest": 1.06914,
+   "carprice": 0.485135
+  },
+  "1967": {
+   "buyrate": 0.647917,
+   "gas": 0.80562,
+   "interest": 1.07585,
+   "carprice": 0.486486
+  },
+  "1968": {
+   "buyrate": 0.635417,
+   "gas": 0.789341,
+   "interest": 1.08117,
+   "carprice": 0.487838
+  },
+  "1969": {
+   "buyrate": 0.622917,
+   "gas": 0.773062,
+   "interest": 1.07088,
+   "carprice": 0.489189
+  },
+  "1970": {
+   "buyrate": 0.610417,
+   "gas": 0.756783,
+   "interest": 1.05737,
+   "carprice": 0.490541
+  },
+  "1971": {
+   "buyrate": 0.601765,
+   "gas": 0.805417,
+   "interest": 1.04746,
+   "carprice": 0.491892
+  },
+  "1972": {
+   "buyrate": 0.612353,
+   "gas": 0.900417,
+   "interest": 1.07696,
+   "carprice": 0.493243
+  },
+  "1973": {
+   "buyrate": 0.622941,
+   "gas": 1.11667,
+   "interest": 1.10252,
+   "stockrate": 1.0,
+   "carprice": 0.494595
+  },
+  "1974": {
+   "buyrate": 0.612222,
+   "gas": 1.82353,
+   "interest": 1.0847,
+   "stockrate": 0.869565,
+   "carprice": 0.495946
+  },
+  "1975": {
+   "buyrate": 0.558889,
+   "gas": 1.71765,
+   "interest": 1.06688,
+   "stockrate": 0.751678,
+   "carprice": 0.497297
+  },
+  "1976": {
+   "buyrate": 0.558621,
+   "gas": 1.61176,
+   "interest": 1.06173,
+   "stockrate": 0.771812,
+   "carprice": 0.498649
+  },
+  "1977": {
+   "buyrate": 0.568966,
+   "gas": 1.50588,
+   "interest": 1.08193,
+   "stockrate": 0.791946,
+   "carprice": 0.5
+  },
+  "1978": {
+   "buyrate": 0.57931,
+   "gas": 1.4,
+   "interest": 1.10213,
+   "stockrate": 0.812081,
+   "carprice": 0.553846
+  },
+  "1979": {
+   "buyrate": 0.5897,
+   "gas": 1.33527,
+   "interest": 1.12233,
+   "stockrate": 0.832215,
+   "carprice": 0.607692
+  },
+  "1980": {
+   "buyrate": 0.60812,
+   "gas": 1.435,
+   "interest": 1.14253,
+   "stockrate": 0.852349,
+   "carprice": 0.661538
+  },
+  "1981": {
+   "buyrate": 0.626541,
+   "gas": 1.472,
+   "interest": 2.19208,
+   "stockrate": 0.872483,
+   "carprice": 0.715385
+  },
+  "1982": {
+   "buyrate": 0.644961,
+   "gas": 1.448,
+   "interest": 1.61708,
+   "stockrate": 0.892617,
+   "carprice": 0.769231
+  },
+  "1983": {
+   "buyrate": 0.663382,
+   "gas": 1.425,
+   "interest": 1.091,
+   "stockrate": 0.912752,
+   "carprice": 0.823077
+  },
+  "1984": {
+   "buyrate": 0.681802,
+   "gas": 1.40824,
+   "interest": 1.10124,
+   "stockrate": 0.932886,
+   "carprice": 0.876923
+  },
+  "1985": {
+   "buyrate": 0.7002,
+   "gas": 1.35473,
+   "interest": 1.0921,
+   "stockrate": 0.95302,
+   "carprice": 0.930769
+  },
+  "1986": {
+   "buyrate": 0.746317,
+   "gas": 1.30122,
+   "interest": 1.08295,
+   "stockrate": 0.973154,
+   "carprice": 0.984615
+  },
+  "1987": {
+   "buyrate": 0.792434,
+   "gas": 1.2477,
+   "interest": 1.07381,
+   "stockrate": 0.993289,
+   "carprice": 1.03846
+  },
+  "1988": {
+   "buyrate": 0.838551,
+   "gas": 1.19419,
+   "interest": 1.07667,
+   "stockrate": 0.816667,
+   "carprice": 1.09231
+  },
+  "1989": {
+   "buyrate": 0.884668,
+   "gas": 1.14068,
+   "interest": 1.0881,
+   "stockrate": 0.883333,
+   "carprice": 1.14615
+  },
+  "1990": {
+   "buyrate": 0.930785,
+   "gas": 1.08716,
+   "interest": 1.07689,
+   "stockrate": 0.895,
+   "carprice": 1.2
+  },
+  "1991": {
+   "buyrate": 0.950989,
+   "gas": 1.08525,
+   "interest": 1.06116,
+   "stockrate": 0.89375,
+   "carprice": 1.20334
+  },
+  "1992": {
+   "buyrate": 0.952684,
+   "gas": 1.00225,
+   "interest": 1.04542,
+   "stockrate": 0.965625,
+   "carprice": 1.20669
+  },
+  "1993": {
+   "buyrate": 0.954379,
+   "gas": 0.926622,
+   "interest": 1.032,
+   "carprice": 1.21003
+  },
+  "1994": {
+   "buyrate": 0.956073,
+   "gas": 0.873108,
+   "interest": 1.044,
+   "carprice": 1.21337
+  },
+  "1995": {
+   "buyrate": 0.957768,
+   "gas": 0.819595,
+   "interest": 1.056,
+   "carprice": 1.21671
+  },
+  "1996": {
+   "buyrate": 0.959463,
+   "gas": 0.766081,
+   "interest": 1.05527,
+   "carprice": 1.22006
+  },
+  "1997": {
+   "buyrate": 0.961158,
+   "gas": 0.712568,
+   "interest": 1.052,
+   "carprice": 1.2234,
+   "stockrate": 1.0
+  },
+  "1998": {
+   "buyrate": 0.962853,
+   "gas": 0.659054,
+   "interest": 1.04954,
+   "stockrate": 0.936563,
+   "carprice": 1.22674
+  },
+  "1999": {
+   "buyrate": 0.964548,
+   "gas": 0.617407,
+   "interest": 1.05604,
+   "stockrate": 0.962813,
+   "carprice": 1.23008
+  },
+  "2000": {
+   "buyrate": 0.966243,
+   "gas": 0.706296,
+   "interest": 1.06056,
+   "stockrate": 0.989063,
+   "carprice": 1.23343
+  },
+  "2001": {
+   "buyrate": 0.967938,
+   "gas": 0.795185,
+   "interest": 1.04322,
+   "stockrate": 0.975,
+   "carprice": 1.23677
+  },
+  "2002": {
+   "buyrate": 0.969633,
+   "gas": 0.884074,
+   "interest": 1.02589,
+   "stockrate": 0.924545,
+   "carprice": 1.24011
+  },
+  "2003": {
+   "buyrate": 0.971328,
+   "gas": 0.972963,
+   "interest": 1.01111,
+   "carprice": 1.24345
+  },
+  "2004": {
+   "buyrate": 0.973023,
+   "gas": 1.06185,
+   "interest": 1.02444,
+   "carprice": 1.2468
+  },
+  "2005": {
+   "buyrate": 0.974718,
+   "gas": 1.15074,
+   "interest": 1.03778,
+   "carprice": 1.25014
+  },
+  "2006": {
+   "buyrate": 0.976412,
+   "gas": 1.23963,
+   "interest": 1.04923,
+   "carprice": 1.25348
+  },
+  "2007": {
+   "buyrate": 0.978107,
+   "gas": 1.32852,
+   "interest": 1.04,
+   "carprice": 1.25682,
+   "stockrate": 0.92
+  },
+  "2008": {
+   "buyrate": 0.979802,
+   "gas": 1.41983,
+   "interest": 1.03077,
+   "stockrate": 0.889459,
+   "carprice": 1.26017
+  },
+  "2009": {
+   "buyrate": 0.981497,
+   "gas": 1.182,
+   "interest": 1.02154,
+   "stockrate": 0.838494,
+   "carprice": 1.26351
+  },
+  "2010": {
+   "buyrate": 0.983192,
+   "gas": 1.26444,
+   "interest": 1.0258,
+   "stockrate": 1.0,
+   "carprice": 1.26685
+  },
+  "2011": {
+   "buyrate": 0.984887,
+   "gas": 1.30778,
+   "interest": 1.03275,
+   "carprice": 1.27019,
+   "stockrate": 0.98
+  },
+  "2012": {
+   "buyrate": 0.986582,
+   "gas": 1.35111,
+   "interest": 1.03971,
+   "stockrate": 0.975,
+   "carprice": 1.27354
+  },
+  "2013": {
+   "buyrate": 0.988277,
+   "gas": 1.37889,
+   "interest": 1.04667,
+   "carprice": 1.27688
+  },
+  "2014": {
+   "buyrate": 0.989972,
+   "gas": 1.37556,
+   "interest": 1.05362,
+   "carprice": 1.28022
+  },
+  "2015": {
+   "buyrate": 0.991667,
+   "gas": 1.14583,
+   "interest": 1.05972,
+   "carprice": 1.28357,
+   "stockrate": 0.95
+  },
+  "2016": {
+   "buyrate": 0.993362,
+   "gas": 1.11449,
+   "interest": 1.05639,
+   "stockrate": 0.946667,
+   "carprice": 1.28691
+  },
+  "2017": {
+   "buyrate": 0.995056,
+   "gas": 1.13188,
+   "interest": 1.05306,
+   "stockrate": 1.00204,
+   "carprice": 1.29025
+  },
+  "2018": {
+   "buyrate": 0.996751,
+   "gas": 1.14928,
+   "interest": 1.04972,
+   "stockrate": 1.01429,
+   "carprice": 1.29359
+  },
+  "2019": {
+   "buyrate": 0.998446,
+   "gas": 1.16667,
+   "interest": 1.04639,
+   "stockrate": 1.02653,
+   "carprice": 1.29694
+  }
+ },
+ "war_timeline": {
+  "1": {
+   "name": "Seattle",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "2": {
+   "name": "Portland",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "3": {
+   "name": "San Francisco",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "4": {
+   "name": "Los Angeles",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "5": {
+   "name": "San Diego",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "6": {
+   "name": "Phoenix",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "7": {
+   "name": "Denver",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "8": {
+   "name": "San Antonio",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "9": {
+   "name": "Houston",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "10": {
+   "name": "Dallas",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "11": {
+   "name": "Oklahoma City",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "12": {
+   "name": "Kansas City",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "13": {
+   "name": "Minneapolis",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "14": {
+   "name": "St. Louis",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "15": {
+   "name": "Memphis",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "16": {
+   "name": "Montgomery",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "17": {
+   "name": "New Orleans",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "18": {
+   "name": "Atlanta",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "19": {
+   "name": "Louisville",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "20": {
+   "name": "Cincinnati",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "21": {
+   "name": "Indianapolis",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "22": {
+   "name": "Chicago",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "23": {
+   "name": "Milwaukee",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "24": {
+   "name": "Detroit",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "25": {
+   "name": "Toledo",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "26": {
+   "name": "Columbus",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "27": {
+   "name": "Cleveland",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "28": {
+   "name": "Pittsburgh",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "29": {
+   "name": "Buffalo",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "30": {
+   "name": "Boston",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "31": {
+   "name": "New York",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "32": {
+   "name": "Philadelphia",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "33": {
+   "name": "Baltimore",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "34": {
+   "name": "Richmond",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "35": {
+   "name": "Norfolk",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "36": {
+   "name": "Charlotte",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "37": {
+   "name": "Jacksonville",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "38": {
+   "name": "Miami",
+   "country": "United States",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "39": {
+   "name": "Vancouver",
+   "country": "Canada",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "40": {
+   "name": "Calgary",
+   "country": "Canada",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "41": {
+   "name": "Winnipeg",
+   "country": "Canada",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "42": {
+   "name": "Toronto",
+   "country": "Canada",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "43": {
+   "name": "Montreal",
+   "country": "Canada",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "44": {
+   "name": "Hermosillo",
+   "country": "Mexico",
+   "periods": [
+    [
+     1910,
+     11,
+     1915,
+     6,
+     "LIMITED"
+    ],
+    [
+     1927,
+     1,
+     1929,
+     6,
+     "WAR"
+    ]
+   ]
+  },
+  "45": {
+   "name": "Monterrey",
+   "country": "Mexico",
+   "periods": [
+    [
+     1910,
+     11,
+     1915,
+     6,
+     "LIMITED"
+    ],
+    [
+     1927,
+     1,
+     1929,
+     6,
+     "WAR"
+    ]
+   ]
+  },
+  "46": {
+   "name": "Guadalajara",
+   "country": "Mexico",
+   "periods": [
+    [
+     1910,
+     11,
+     1915,
+     6,
+     "LIMITED"
+    ],
+    [
+     1927,
+     1,
+     1929,
+     6,
+     "WAR"
+    ]
+   ]
+  },
+  "47": {
+   "name": "Leon",
+   "country": "Mexico",
+   "periods": [
+    [
+     1910,
+     11,
+     1915,
+     6,
+     "LIMITED"
+    ],
+    [
+     1927,
+     1,
+     1929,
+     6,
+     "WAR"
+    ]
+   ]
+  },
+  "48": {
+   "name": "Mexico City",
+   "country": "Mexico",
+   "periods": [
+    [
+     1910,
+     11,
+     1915,
+     6,
+     "LIMITED"
+    ],
+    [
+     1927,
+     1,
+     1929,
+     6,
+     "WAR"
+    ]
+   ]
+  },
+  "49": {
+   "name": "Puebla",
+   "country": "Mexico",
+   "periods": [
+    [
+     1910,
+     11,
+     1915,
+     6,
+     "LIMITED"
+    ],
+    [
+     1927,
+     1,
+     1929,
+     6,
+     "WAR"
+    ]
+   ]
+  },
+  "50": {
+   "name": "San José",
+   "country": "Costa Rica",
+   "periods": [
+    [
+     1918,
+     5,
+     1918,
+     11,
+     "LIMITED"
+    ]
+   ]
+  },
+  "51": {
+   "name": "Medellín",
+   "country": "Colombia",
+   "periods": [
+    [
+     1948,
+     4,
+     1953,
+     6,
+     "LIMITED"
+    ]
+   ]
+  },
+  "52": {
+   "name": "Bogotá",
+   "country": "Colombia",
+   "periods": [
+    [
+     1948,
+     4,
+     1953,
+     6,
+     "LIMITED"
+    ]
+   ]
+  },
+  "53": {
+   "name": "Caracas",
+   "country": "Venezuela",
+   "periods": [
+    [
+     1902,
+     12,
+     1903,
+     2,
+     "LIMITED"
+    ]
+   ]
+  },
+  "60": {
+   "name": "Porto Alegre",
+   "country": "Brazil",
+   "periods": [
+    [
+     1917,
+     10,
+     1918,
+     11,
+     "LIMITED"
+    ]
+   ]
+  },
+  "61": {
+   "name": "Joinville",
+   "country": "Brazil",
+   "periods": [
+    [
+     1917,
+     10,
+     1918,
+     11,
+     "LIMITED"
+    ]
+   ]
+  },
+  "62": {
+   "name": "São Paulo",
+   "country": "Brazil",
+   "periods": [
+    [
+     1917,
+     10,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1922,
+     7,
+     1922,
+     8,
+     "LIMITED"
+    ],
+    [
+     1932,
+     7,
+     1932,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "63": {
+   "name": "Rio de Janeiro",
+   "country": "Brazil",
+   "periods": [
+    [
+     1917,
+     10,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1922,
+     7,
+     1922,
+     8,
+     "LIMITED"
+    ]
+   ]
+  },
+  "64": {
+   "name": "Salvador",
+   "country": "Brazil",
+   "periods": [
+    [
+     1917,
+     10,
+     1918,
+     11,
+     "LIMITED"
+    ]
+   ]
+  },
+  "65": {
+   "name": "Fortaleza",
+   "country": "Brazil",
+   "periods": [
+    [
+     1917,
+     10,
+     1918,
+     11,
+     "LIMITED"
+    ]
+   ]
+  },
+  "66": {
+   "name": "Dublin",
+   "country": "United Kingdom",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ]
+   ]
+  },
+  "67": {
+   "name": "Belfast",
+   "country": "United Kingdom",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "68": {
+   "name": "Glasgow",
+   "country": "United Kingdom",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "69": {
+   "name": "Leeds",
+   "country": "United Kingdom",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "70": {
+   "name": "Liverpool",
+   "country": "United Kingdom",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "71": {
+   "name": "Birmingham",
+   "country": "United Kingdom",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "72": {
+   "name": "London",
+   "country": "United Kingdom",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "73": {
+   "name": "Lisbon",
+   "country": "Portugal",
+   "periods": [
+    [
+     1916,
+     3,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1942,
+     1,
+     1945,
+     9,
+     "LIMITED"
+    ]
+   ]
+  },
+  "74": {
+   "name": "Vigo",
+   "country": "Spain",
+   "periods": [
+    [
+     1936,
+     7,
+     1939,
+     4,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "75": {
+   "name": "Madrid",
+   "country": "Spain",
+   "periods": [
+    [
+     1936,
+     7,
+     1939,
+     4,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "76": {
+   "name": "Valencia",
+   "country": "Spain",
+   "periods": [
+    [
+     1936,
+     7,
+     1939,
+     4,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "77": {
+   "name": "Barcelona",
+   "country": "Spain",
+   "periods": [
+    [
+     1936,
+     7,
+     1939,
+     4,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "78": {
+   "name": "Rennes",
+   "country": "France",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "79": {
+   "name": "Nantes",
+   "country": "France",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "80": {
+   "name": "Bordeaux",
+   "country": "France",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "81": {
+   "name": "Toulouse",
+   "country": "France",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "82": {
+   "name": "Paris",
+   "country": "France",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "83": {
+   "name": "Lyon",
+   "country": "France",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "84": {
+   "name": "Marseille",
+   "country": "France",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "85": {
+   "name": "Brussels",
+   "country": "Belgium",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "TOTAL_WAR"
+    ],
+    [
+     1940,
+     5,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "86": {
+   "name": "Rotterdam",
+   "country": "Netherlands",
+   "periods": [
+    [
+     1940,
+     5,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "87": {
+   "name": "Amsterdam",
+   "country": "Netherlands",
+   "periods": [
+    [
+     1940,
+     5,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "88": {
+   "name": "Hamburg",
+   "country": "Germany",
+   "periods": [
+    [
+     1914,
+     8,
+     1919,
+     8,
+     "WAR"
+    ],
+    [
+     1923,
+     10,
+     1923,
+     11,
+     "LIMITED"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "89": {
+   "name": "Hanover",
+   "country": "Germany",
+   "periods": [
+    [
+     1914,
+     8,
+     1919,
+     8,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "90": {
+   "name": "Berlin",
+   "country": "Germany",
+   "periods": [
+    [
+     1914,
+     8,
+     1919,
+     8,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "91": {
+   "name": "Leipzig",
+   "country": "Germany",
+   "periods": [
+    [
+     1914,
+     8,
+     1919,
+     8,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "92": {
+   "name": "Cologne",
+   "country": "Germany",
+   "periods": [
+    [
+     1914,
+     8,
+     1919,
+     8,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "93": {
+   "name": "Frankfurt",
+   "country": "Germany",
+   "periods": [
+    [
+     1914,
+     8,
+     1919,
+     8,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "94": {
+   "name": "Stuttgart",
+   "country": "Germany",
+   "periods": [
+    [
+     1914,
+     8,
+     1919,
+     8,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "95": {
+   "name": "Munich",
+   "country": "Germany",
+   "periods": [
+    [
+     1914,
+     8,
+     1919,
+     8,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "97": {
+   "name": "Turin",
+   "country": "Italy",
+   "periods": [
+    [
+     1915,
+     5,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1940,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "98": {
+   "name": "Milan",
+   "country": "Italy",
+   "periods": [
+    [
+     1915,
+     5,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1940,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "99": {
+   "name": "Genoa",
+   "country": "Italy",
+   "periods": [
+    [
+     1915,
+     5,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1940,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "100": {
+   "name": "Bologna",
+   "country": "Italy",
+   "periods": [
+    [
+     1915,
+     5,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1940,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "101": {
+   "name": "Rome",
+   "country": "Italy",
+   "periods": [
+    [
+     1915,
+     5,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1940,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "102": {
+   "name": "Naples",
+   "country": "Italy",
+   "periods": [
+    [
+     1915,
+     5,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1940,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "103": {
+   "name": "Palermo",
+   "country": "Italy",
+   "periods": [
+    [
+     1915,
+     5,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1940,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "104": {
+   "name": "Copenhagen",
+   "country": "Denmark",
+   "periods": [
+    [
+     1940,
+     4,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "107": {
+   "name": "Oslo",
+   "country": "Norway",
+   "periods": [
+    [
+     1940,
+     4,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "108": {
+   "name": "Helsinki",
+   "country": "Russia",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     11,
+     1940,
+     3,
+     "TOTAL_WAR"
+    ],
+    [
+     1941,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "109": {
+   "name": "Poznań",
+   "country": "Germany",
+   "periods": [
+    [
+     1914,
+     8,
+     1921,
+     3,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ],
+    [
+     1956,
+     6,
+     1956,
+     7,
+     "LIMITED"
+    ]
+   ]
+  },
+  "110": {
+   "name": "Warsaw",
+   "country": "Russia",
+   "periods": [
+    [
+     1914,
+     8,
+     1921,
+     3,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "111": {
+   "name": "Lublin",
+   "country": "Russia",
+   "periods": [
+    [
+     1914,
+     8,
+     1921,
+     3,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "112": {
+   "name": "Katowice",
+   "country": "Germany",
+   "periods": [
+    [
+     1914,
+     8,
+     1921,
+     3,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "113": {
+   "name": "Prague",
+   "country": "Austria-Hungary",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "114": {
+   "name": "Vienna",
+   "country": "Austria-Hungary",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "115": {
+   "name": "Bratislava",
+   "country": "Austria-Hungary",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "116": {
+   "name": "Budapest",
+   "country": "Austria-Hungary",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1919,
+     4,
+     1919,
+     8,
+     "WAR"
+    ],
+    [
+     1941,
+     4,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ],
+    [
+     1956,
+     10,
+     1956,
+     12,
+     "WAR"
+    ]
+   ]
+  },
+  "117": {
+   "name": "Zagreb",
+   "country": "Austria-Hungary",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1941,
+     4,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ],
+    [
+     1991,
+     3,
+     1995,
+     11,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "118": {
+   "name": "Sofia",
+   "country": "Bulgaria",
+   "periods": [
+    [
+     1912,
+     10,
+     1913,
+     9,
+     "LIMITED"
+    ],
+    [
+     1915,
+     10,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1941,
+     4,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "119": {
+   "name": "Athens",
+   "country": "Greece",
+   "periods": [
+    [
+     1912,
+     10,
+     1913,
+     6,
+     "LIMITED"
+    ],
+    [
+     1916,
+     12,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1919,
+     5,
+     1922,
+     10,
+     "WAR"
+    ],
+    [
+     1940,
+     10,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ],
+    [
+     1946,
+     9,
+     1949,
+     10,
+     "WAR"
+    ]
+   ]
+  },
+  "120": {
+   "name": "Bucharest",
+   "country": "Romania",
+   "periods": [
+    [
+     1907,
+     3,
+     1907,
+     5,
+     "LIMITED"
+    ],
+    [
+     1916,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1919,
+     4,
+     1919,
+     8,
+     "WAR"
+    ],
+    [
+     1941,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ],
+    [
+     1989,
+     12,
+     1990,
+     1,
+     "WAR"
+    ]
+   ]
+  },
+  "121": {
+   "name": "Lviv",
+   "country": "Austria-Hungary",
+   "periods": [
+    [
+     1914,
+     8,
+     1921,
+     3,
+     "TOTAL_WAR"
+    ],
+    [
+     1939,
+     9,
+     1940,
+     3,
+     "LIMITED"
+    ],
+    [
+     1941,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "122": {
+   "name": "Kyiv",
+   "country": "Russia",
+   "periods": [
+    [
+     1905,
+     1,
+     1905,
+     11,
+     "LIMITED"
+    ],
+    [
+     1914,
+     8,
+     1923,
+     1,
+     "TOTAL_WAR"
+    ],
+    [
+     1939,
+     11,
+     1940,
+     3,
+     "LIMITED"
+    ],
+    [
+     1941,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "123": {
+   "name": "Minsk",
+   "country": "Russia",
+   "periods": [
+    [
+     1905,
+     1,
+     1905,
+     11,
+     "LIMITED"
+    ],
+    [
+     1914,
+     8,
+     1923,
+     1,
+     "TOTAL_WAR"
+    ],
+    [
+     1939,
+     11,
+     1940,
+     3,
+     "LIMITED"
+    ],
+    [
+     1941,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "124": {
+   "name": "St. Petersburg",
+   "country": "Russia",
+   "periods": [
+    [
+     1905,
+     1,
+     1905,
+     11,
+     "LIMITED"
+    ],
+    [
+     1914,
+     8,
+     1923,
+     1,
+     "TOTAL_WAR"
+    ],
+    [
+     1939,
+     11,
+     1940,
+     3,
+     "LIMITED"
+    ],
+    [
+     1941,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "125": {
+   "name": "Moscow",
+   "country": "Russia",
+   "periods": [
+    [
+     1905,
+     1,
+     1906,
+     1,
+     "LIMITED"
+    ],
+    [
+     1914,
+     8,
+     1923,
+     1,
+     "TOTAL_WAR"
+    ],
+    [
+     1939,
+     11,
+     1940,
+     3,
+     "LIMITED"
+    ],
+    [
+     1941,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "126": {
+   "name": "Yaroslavl",
+   "country": "Russia",
+   "periods": [
+    [
+     1905,
+     1,
+     1905,
+     11,
+     "LIMITED"
+    ],
+    [
+     1914,
+     8,
+     1923,
+     1,
+     "TOTAL_WAR"
+    ],
+    [
+     1939,
+     11,
+     1940,
+     3,
+     "LIMITED"
+    ],
+    [
+     1941,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "127": {
+   "name": "Nizhny Novgorod",
+   "country": "Russia",
+   "periods": [
+    [
+     1905,
+     1,
+     1905,
+     11,
+     "LIMITED"
+    ],
+    [
+     1914,
+     8,
+     1923,
+     1,
+     "TOTAL_WAR"
+    ],
+    [
+     1939,
+     11,
+     1940,
+     3,
+     "LIMITED"
+    ],
+    [
+     1941,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "128": {
+   "name": "Volgograd",
+   "country": "Russia",
+   "periods": [
+    [
+     1905,
+     1,
+     1905,
+     11,
+     "LIMITED"
+    ],
+    [
+     1914,
+     8,
+     1923,
+     1,
+     "TOTAL_WAR"
+    ],
+    [
+     1939,
+     11,
+     1940,
+     3,
+     "LIMITED"
+    ],
+    [
+     1941,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "129": {
+   "name": "Tolyatti",
+   "country": "Russia",
+   "periods": [
+    [
+     1905,
+     1,
+     1905,
+     11,
+     "LIMITED"
+    ],
+    [
+     1914,
+     8,
+     1923,
+     1,
+     "TOTAL_WAR"
+    ],
+    [
+     1939,
+     11,
+     1940,
+     3,
+     "LIMITED"
+    ],
+    [
+     1941,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "130": {
+   "name": "Izhevsk",
+   "country": "Russia",
+   "periods": [
+    [
+     1905,
+     1,
+     1905,
+     11,
+     "LIMITED"
+    ],
+    [
+     1914,
+     8,
+     1923,
+     1,
+     "TOTAL_WAR"
+    ],
+    [
+     1939,
+     11,
+     1940,
+     3,
+     "LIMITED"
+    ],
+    [
+     1941,
+     6,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "131": {
+   "name": "Casablanca",
+   "country": "French Africa",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "132": {
+   "name": "Algiers",
+   "country": "French Africa",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ],
+    [
+     1954,
+     11,
+     1962,
+     3,
+     "TOTAL_WAR"
+    ],
+    [
+     1991,
+     12,
+     2002,
+     2,
+     "WAR"
+    ]
+   ]
+  },
+  "133": {
+   "name": "Lagos",
+   "country": "British Nigeria",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ],
+    [
+     1967,
+     7,
+     1970,
+     1,
+     "WAR"
+    ]
+   ]
+  },
+  "134": {
+   "name": "Cape Town",
+   "country": "Orange Free State",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "135": {
+   "name": "Port Elizabeth",
+   "country": "Orange Free State",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "136": {
+   "name": "Johannesburg",
+   "country": "Orange Free State",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "137": {
+   "name": "Nairobi",
+   "country": "British East Africa",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "138": {
+   "name": "Addis Ababa",
+   "country": "Ethiopia",
+   "periods": [
+    [
+     1930,
+     1,
+     1930,
+     3,
+     "LIMITED"
+    ],
+    [
+     1935,
+     10,
+     1936,
+     5,
+     "TOTAL_WAR"
+    ],
+    [
+     1940,
+     6,
+     1945,
+     9,
+     "WAR"
+    ],
+    [
+     1974,
+     9,
+     1991,
+     6,
+     "WAR"
+    ]
+   ]
+  },
+  "139": {
+   "name": "Cairo",
+   "country": "British Egypt",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ],
+    [
+     1973,
+     10,
+     1973,
+     11,
+     "WAR"
+    ]
+   ]
+  },
+  "140": {
+   "name": "Tel Aviv",
+   "country": "Ottoman Empire",
+   "periods": [
+    [
+     1914,
+     11,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1936,
+     5,
+     1939,
+     8,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ],
+    [
+     1947,
+     11,
+     1949,
+     3,
+     "TOTAL_WAR"
+    ],
+    [
+     1973,
+     10,
+     1973,
+     11,
+     "WAR"
+    ]
+   ]
+  },
+  "141": {
+   "name": "Amman",
+   "country": "Ottoman Empire",
+   "periods": [
+    [
+     1914,
+     11,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1936,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "142": {
+   "name": "Adana",
+   "country": "Ottoman Empire",
+   "periods": [
+    [
+     1914,
+     11,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1919,
+     5,
+     1922,
+     10,
+     "WAR"
+    ],
+    [
+     1945,
+     2,
+     1945,
+     9,
+     "LIMITED"
+    ]
+   ]
+  },
+  "143": {
+   "name": "Izmir",
+   "country": "Ottoman Empire",
+   "periods": [
+    [
+     1914,
+     11,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1919,
+     5,
+     1922,
+     10,
+     "WAR"
+    ],
+    [
+     1945,
+     2,
+     1945,
+     9,
+     "LIMITED"
+    ]
+   ]
+  },
+  "144": {
+   "name": "Istanbul",
+   "country": "Ottoman Empire",
+   "periods": [
+    [
+     1912,
+     10,
+     1913,
+     6,
+     "LIMITED"
+    ],
+    [
+     1914,
+     11,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1919,
+     5,
+     1922,
+     10,
+     "WAR"
+    ],
+    [
+     1945,
+     2,
+     1945,
+     9,
+     "LIMITED"
+    ]
+   ]
+  },
+  "145": {
+   "name": "Ankara",
+   "country": "Ottoman Empire",
+   "periods": [
+    [
+     1914,
+     11,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1919,
+     5,
+     1922,
+     10,
+     "WAR"
+    ],
+    [
+     1945,
+     2,
+     1945,
+     9,
+     "LIMITED"
+    ]
+   ]
+  },
+  "146": {
+   "name": "Baghdad",
+   "country": "Ottoman Empire",
+   "periods": [
+    [
+     1914,
+     11,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1920,
+     5,
+     1920,
+     10,
+     "WAR"
+    ],
+    [
+     1941,
+     5,
+     1945,
+     9,
+     "WAR"
+    ],
+    [
+     1974,
+     4,
+     1975,
+     5,
+     "LIMITED"
+    ],
+    [
+     1980,
+     9,
+     1988,
+     8,
+     "TOTAL_WAR"
+    ],
+    [
+     1990,
+     8,
+     2017,
+     7,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "147": {
+   "name": "Riyadh",
+   "country": "Jabal Shammar",
+   "periods": [
+    [
+     1914,
+     11,
+     1918,
+     11,
+     "WAR"
+    ]
+   ]
+  },
+  "148": {
+   "name": "Dubai",
+   "country": "British Raj",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "149": {
+   "name": "Tehran",
+   "country": "Persia",
+   "periods": [
+    [
+     1941,
+     8,
+     1941,
+     9,
+     "WAR"
+    ],
+    [
+     1980,
+     9,
+     1988,
+     8,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "150": {
+   "name": "Ahvaz",
+   "country": "Persia",
+   "periods": [
+    [
+     1941,
+     8,
+     1941,
+     9,
+     "WAR"
+    ],
+    [
+     1980,
+     9,
+     1988,
+     8,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "151": {
+   "name": "Mashhad",
+   "country": "Persia",
+   "periods": [
+    [
+     1941,
+     8,
+     1941,
+     9,
+     "WAR"
+    ],
+    [
+     1980,
+     9,
+     1988,
+     8,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "152": {
+   "name": "Karachi",
+   "country": "British Raj",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "153": {
+   "name": "Delhi",
+   "country": "British Raj",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "154": {
+   "name": "Ahmedabad",
+   "country": "British Raj",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "155": {
+   "name": "Mumbai",
+   "country": "British Raj",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "156": {
+   "name": "Bengaluru",
+   "country": "British Raj",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "157": {
+   "name": "Chennai",
+   "country": "British Raj",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "158": {
+   "name": "Kolkata",
+   "country": "British Raj",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "159": {
+   "name": "Bangkok",
+   "country": "Siam",
+   "periods": [
+    [
+     1917,
+     7,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1940,
+     10,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "160": {
+   "name": "Hanoi",
+   "country": "French Indochina",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1940,
+     9,
+     1954,
+     8,
+     "TOTAL_WAR"
+    ],
+    [
+     1959,
+     3,
+     1973,
+     1,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "161": {
+   "name": "Nanning",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "162": {
+   "name": "Chongqing",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "163": {
+   "name": "Guangzhou",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "164": {
+   "name": "Shenzhen",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "165": {
+   "name": "Changsha",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "166": {
+   "name": "Fuzhou",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "167": {
+   "name": "Taizhou",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "168": {
+   "name": "Shanghai",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1932,
+     5,
+     "TOTAL_WAR"
+    ],
+    [
+     1937,
+     7,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "169": {
+   "name": "Nanjing",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "170": {
+   "name": "Wuhan",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "171": {
+   "name": "Xian",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "172": {
+   "name": "Jinan",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "173": {
+   "name": "Tianjin",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1922,
+     4,
+     1922,
+     6,
+     "WAR"
+    ],
+    [
+     1924,
+     9,
+     1924,
+     11,
+     "WAR"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "174": {
+   "name": "Beijing",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1920,
+     7,
+     1920,
+     8,
+     "LIMITED"
+    ],
+    [
+     1922,
+     4,
+     1922,
+     6,
+     "WAR"
+    ],
+    [
+     1924,
+     9,
+     1924,
+     11,
+     "WAR"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "175": {
+   "name": "Shenyang",
+   "country": "Qing China",
+   "periods": [
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "176": {
+   "name": "Changchun",
+   "country": "Qing China",
+   "periods": [
+    [
+     1904,
+     3,
+     1905,
+     9,
+     "LIMITED"
+    ],
+    [
+     1911,
+     10,
+     1912,
+     2,
+     "LIMITED"
+    ],
+    [
+     1916,
+     1,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1925,
+     6,
+     1949,
+     10,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "177": {
+   "name": "Seoul",
+   "country": "Korean Empire",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ],
+    [
+     1950,
+     6,
+     1953,
+     7,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "178": {
+   "name": "Gunsan-si",
+   "country": "Korean Empire",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ],
+    [
+     1950,
+     6,
+     1953,
+     7,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "179": {
+   "name": "Gwangju",
+   "country": "Korean Empire",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ],
+    [
+     1950,
+     6,
+     1953,
+     7,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "180": {
+   "name": "Busan",
+   "country": "Korean Empire",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ],
+    [
+     1950,
+     6,
+     1953,
+     7,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "181": {
+   "name": "Sapporo",
+   "country": "Japan",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "182": {
+   "name": "Sendai",
+   "country": "Japan",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "183": {
+   "name": "Iwaki",
+   "country": "Japan",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "184": {
+   "name": "Tokyo",
+   "country": "Japan",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "185": {
+   "name": "Yokohama",
+   "country": "Japan",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "186": {
+   "name": "Toyama",
+   "country": "Japan",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "187": {
+   "name": "Nagoya",
+   "country": "Japan",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "188": {
+   "name": "Kyoto",
+   "country": "Japan",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "189": {
+   "name": "Osaka",
+   "country": "Japan",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "190": {
+   "name": "Hiroshima",
+   "country": "Japan",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "191": {
+   "name": "Fukuoka",
+   "country": "Japan",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "192": {
+   "name": "Taipei",
+   "country": "Japan",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1937,
+     7,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "193": {
+   "name": "Manila",
+   "country": "US Military Philippines",
+   "periods": [
+    [
+     1917,
+     4,
+     1918,
+     11,
+     "LIMITED"
+    ],
+    [
+     1941,
+     12,
+     1945,
+     9,
+     "TOTAL_WAR"
+    ]
+   ]
+  },
+  "194": {
+   "name": "Butterworth",
+   "country": "British Malaya",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "195": {
+   "name": "Kuala Lumpur",
+   "country": "British Malaya",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "196": {
+   "name": "Singapore",
+   "country": "British Straits",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "197": {
+   "name": "Padang",
+   "country": "Dutch East Indies",
+   "periods": [
+    [
+     1941,
+     12,
+     1949,
+     11,
+     "WAR"
+    ]
+   ]
+  },
+  "198": {
+   "name": "Jakarta",
+   "country": "Dutch East Indies",
+   "periods": [
+    [
+     1941,
+     12,
+     1949,
+     11,
+     "WAR"
+    ]
+   ]
+  },
+  "199": {
+   "name": "Samarinda",
+   "country": "Dutch East Indies",
+   "periods": [
+    [
+     1941,
+     12,
+     1949,
+     11,
+     "WAR"
+    ]
+   ]
+  },
+  "200": {
+   "name": "Perth",
+   "country": "Australia",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "201": {
+   "name": "Adelaide",
+   "country": "Australia",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "202": {
+   "name": "Melbourne",
+   "country": "Australia",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "203": {
+   "name": "Sydney",
+   "country": "Australia",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "204": {
+   "name": "Brisbane",
+   "country": "Australia",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  },
+  "205": {
+   "name": "Auckland",
+   "country": "New Zealand",
+   "periods": [
+    [
+     1914,
+     8,
+     1918,
+     11,
+     "WAR"
+    ],
+    [
+     1939,
+     9,
+     1945,
+     9,
+     "WAR"
+    ]
+   ]
+  }
+ }
+}

@@ -1,10 +1,31 @@
 # GearCity Autonomous Agent
 
-An AI agent prototype ('AI CEO') that autonomously plays **[GearCity](https://store.steampowered.com/app/285110/GearCity/)**, a car company management simulation game.
-
-Built as a technical proof-of-concept for a game project (RQI), using a LangGraph multi-step SQL pipeline with a local LLM for strategic analysis and decision-making.
+> An AI advisor ('AI CEO') for the business management simulation **[GearCity](https://store.steampowered.com/app/285110/GearCity/)**.
+> Uses a LangGraph multi-step SQL pipeline with a local LLM for strategic analysis.
 
 [한국어 README](READMEKR.md)
+
+---
+
+## Why This Project Exists
+
+My upcoming business simulation game, **'RedQueen Industry (RQI)'**, is planned to ship with an LLM-based AI advisor that assists players drowning in data during the mid-to-late game — a secretary that understands context and can tell you *"Boss, your London branch inventory is critical"* at exactly the right moment. (It will likely be distributed separately via GitHub.) Why not just build it myself?
+
+However, the typical chatbot integration approach has clear limitations. A general-purpose LLM, starting from zero context, can barely grasp a game's complex internal rules and real-time data from user questions or screen recognition alone. Before integrating this system into RQI proper, I needed a proving ground to validate whether an AI agent can actually analyze intricately interconnected game data and produce meaningful strategic advice.
+
+### Why GearCity?
+
+While searching for a simulation game to serve as this proof-of-concept, GearCity stood out. It has an almost perfect structure for external AI integration:
+
+- **Turn-based System** — No real-time latency constraints; the agent can focus on careful per-turn data analysis and reasoning.
+- **Accessible State Data** — Save files are managed as a single SQLite database, making it straightforward for the agent to query and track all in-game state via SQL.
+- **Structured Knowledge** — A nearly comprehensive DokuWiki covering game mechanics is available, ideal for building a RAG (Retrieval-Augmented Generation) knowledge base for the LLM.
+
+On top of these conditions, the fact that I've already played GearCity extensively — and know exactly *where* players struggle and *where* they need help — was an important factor.
+
+This project goes beyond a simple 'chatbot toy'. It's the first prototype toward a genuine **gameplay advisor** that extracts meaningful insights from database state, understands rules via wiki knowledge, and discusses business strategy with the player.
+
+---
 
 ## Tech Stack
 

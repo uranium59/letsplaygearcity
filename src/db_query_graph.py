@@ -190,8 +190,23 @@ def strip_think_tags(text: str) -> str:
 
 # ── LLM 초기화 ──────────────────────────────────────────────────
 
-def create_llm(temperature: float = 0) -> ChatOllama:
-    return ChatOllama(model=MODEL_NAME, temperature=temperature)
+LLM_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
+
+# 노드 역할별 최대 출력 토큰 — 무한 생성 루프 방지
+# (repeat_penalty=1 + temperature=0 조합에서 EOS 없이 반복 생성되는 문제 차단)
+LLM_MAX_TOKENS_SQL = 512       # SQL 생성: SELECT 문 1개
+LLM_MAX_TOKENS_PLAN = 1024     # Planner: SUB/TABLES 5개
+LLM_MAX_TOKENS_ANALYSIS = 3000  # Analyst/Strategist/Aggregator: 종합 분석
+LLM_MAX_TOKENS_CLASSIFY = 32   # Classifier: 단어 1개
+
+
+def create_llm(temperature: float = 0, max_tokens: int = LLM_MAX_TOKENS_ANALYSIS) -> ChatOllama:
+    return ChatOllama(
+        model=MODEL_NAME,
+        temperature=temperature,
+        num_ctx=LLM_NUM_CTX,
+        num_predict=max_tokens,
+    )
 
 
 # ── 사전 라우터 (키워드 기반, LLM 호출 없음) ──────────────────────
@@ -330,7 +345,7 @@ If the question is simple enough for one query, output just SUB1/TABLES1."""
 
 def planner_node(state: GraphState) -> dict:
     """질문을 1~5개 서브쿼리로 분해, 필요 테이블 선택."""
-    llm = create_llm(temperature=0)
+    llm = create_llm(temperature=0, max_tokens=LLM_MAX_TOKENS_PLAN)
     catalog = build_table_catalog()
 
     memory = get_memory()
@@ -420,7 +435,7 @@ Write a single SELECT query to answer the question below.
 
 def sql_generator_node(state: GraphState) -> dict:
     """서브쿼리 하나에 대해 SQL 생성."""
-    llm = create_llm(temperature=0)
+    llm = create_llm(temperature=0, max_tokens=LLM_MAX_TOKENS_SQL)
     idx = state["current_index"]
     sq = state["sub_queries"][idx]
 
@@ -710,7 +725,7 @@ def analyst_node(state: GraphState) -> dict:
 
 def classifier_node(state: GraphState) -> dict:
     """질문 유형 분류: factual / analytical / strategic."""
-    llm = create_llm(temperature=0)
+    llm = create_llm(temperature=0, max_tokens=LLM_MAX_TOKENS_CLASSIFY)
     prompt = CLASSIFIER_PROMPT.format(
         question=state["user_question"],
         analyst_summary=state.get("analyst_summary", ""),
@@ -806,126 +821,30 @@ def strategist_node(state: GraphState) -> dict:
     return {"strategy_candidates": candidates}
 
 
-def strategy_evaluator_node(state: GraphState) -> dict:
-    """모든 전략 후보를 순차 평가. (Send() 병렬 실행 시 GPU 경쟁→데드락 방지)
+def aggregator_node(state: GraphState) -> dict:
+    """전략 후보를 analyst_summary 데이터로 직접 비교 → 최종 추천. (LLM 1회)
 
-    각 전략에 대해: 추가 SQL 1개 실행 + LLM 평가를 순차적으로 수행한다.
+    기존 evaluator 단계(전략별 SQL+LLM 평가)를 제거하고,
+    이미 수집된 analyst_summary만으로 전략을 비교/추천한다.
+    Qwen 30B 로컬 환경에서 evaluator 병목(전략당 2+ LLM 호출)을 방지.
     """
     candidates = state.get("strategy_candidates", [])
-    db_path = state["db_path"]
     analyst_summary = state.get("analyst_summary", "")
-    all_evaluations: list[StrategyEvaluation] = []
 
-    for strategy in candidates:
-        # 추가 데이터 수집: 전략별 SQL 최대 1개
-        additional_data_parts = []
-        schema_text = extract_table_schemas(strategy["relevant_tables"])
-        if not schema_text:
-            schema_text = extract_table_schemas(CORE_TABLES)
+    if not candidates:
+        return {"final_answer": analyst_summary}
 
-        llm = create_llm(temperature=0)
-        for query_text in strategy["data_queries"][:1]:
-            # SQL 생성
-            sql_prompt = EVALUATOR_SQL_PROMPT.format(
-                schema=schema_text,
-                question=query_text,
-            )
-            sql_response = llm.invoke(sql_prompt)
-            sql_raw = strip_think_tags(sql_response.content)
-            sql = clean_sql(sql_raw)
-
-            if not sql or not sql.strip():
-                continue
-
-            # SQL 실행
-            try:
-                conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-                df = pd.read_sql_query(sql, conn)
-                conn.close()
-                if df.empty:
-                    result_str = "(No results)"
-                else:
-                    result_str = df.head(20).to_markdown(index=False)
-                additional_data_parts.append(f"Q: {query_text}\n{result_str}")
-            except Exception:
-                additional_data_parts.append(f"Q: {query_text}\n(Query failed)")
-
-        additional_data = "\n\n".join(additional_data_parts) if additional_data_parts else "(No additional data)"
-
-        # LLM 평가
-        eval_llm = create_llm(temperature=0.3)
-        eval_prompt = EVALUATOR_PROMPT.format(
-            question=state["user_question"],
-            strategy_name=strategy["name"],
-            strategy_description=strategy["description"],
-            analyst_summary=analyst_summary,
-            additional_data=additional_data,
-        )
-        eval_response = eval_llm.invoke(eval_prompt)
-        eval_raw = strip_think_tags(eval_response.content)
-
-        # 파싱
-        pros = _extract_field(eval_raw, "PROS", "N/A")
-        cons = _extract_field(eval_raw, "CONS", "N/A")
-        feasibility = _extract_field(eval_raw, "FEASIBILITY", "MEDIUM")
-        impact = _extract_field(eval_raw, "IMPACT", "MEDIUM")
-        score_str = _extract_field(eval_raw, "SCORE", "5")
-        try:
-            score = float(re.search(r"[\d.]+", score_str).group())
-        except (AttributeError, ValueError):
-            score = 5.0
-
-        all_evaluations.append(StrategyEvaluation(
-            strategy_id=strategy["id"],
-            strategy_name=strategy["name"],
-            pros=pros,
-            cons=cons,
-            feasibility=feasibility,
-            estimated_impact=impact,
-            supporting_data=additional_data,
-            score=score,
-        ))
-
-    return {"strategy_evaluations": all_evaluations}
-
-
-def _extract_field(text: str, field_name: str, default: str) -> str:
-    """평가 출력에서 필드 값 추출."""
-    m = re.search(rf"{field_name}:\s*(.+?)(?:\n[A-Z_]+:|$)", text, re.DOTALL)
-    return m.group(1).strip() if m else default
-
-
-def aggregator_node(state: GraphState) -> dict:
-    """전략 평가를 종합 비교, 우선순위 매기기, 최종 답변 생성."""
-    evaluations = state.get("strategy_evaluations", [])
-
-    # 평가 결과가 없으면 analyst_summary + 경고 반환
-    if not evaluations:
-        warning = "\n\n⚠️ 전략 평가를 수행하지 못했습니다. 위의 분석 결과를 참고해 주세요."
-        return {"final_answer": state.get("analyst_summary", "") + warning}
-
-    # 점수 기준 정렬
-    sorted_evals = sorted(evaluations, key=lambda e: e["score"], reverse=True)
-
-    # 평가 섹션 구성
-    eval_sections = []
-    for rank, ev in enumerate(sorted_evals, 1):
-        section = (
-            f"### #{rank}: {ev['strategy_name']} (Score: {ev['score']}/10)\n"
-            f"- **Pros**: {ev['pros']}\n"
-            f"- **Cons**: {ev['cons']}\n"
-            f"- **Feasibility**: {ev['feasibility']}\n"
-            f"- **Impact**: {ev['estimated_impact']}\n"
-            f"- **Supporting Data**: {ev['supporting_data']}"
-        )
-        eval_sections.append(section)
-    evaluations_section = "\n\n".join(eval_sections)
+    # 전략 후보 섹션 구성
+    strategy_sections = []
+    for c in candidates:
+        strategy_sections.append(f"### Strategy {c['id']}: {c['name']}\n{c['description']}")
+    strategies_text = "\n\n".join(strategy_sections)
 
     llm = create_llm(temperature=0.3)
     prompt = AGGREGATOR_PROMPT.format(
         question=state["user_question"],
-        analyst_summary=state.get("analyst_summary", ""),
-        evaluations_section=evaluations_section,
+        analyst_summary=analyst_summary,
+        evaluations_section=strategies_text,
     )
     response = llm.invoke(prompt)
     answer = strip_think_tags(response.content)
@@ -1349,7 +1268,6 @@ def build_graph() -> StateGraph:
     # 전략 분석 파이프라인 노드
     graph.add_node("classifier", classifier_node)
     graph.add_node("strategist", strategist_node)
-    graph.add_node("strategy_evaluator", strategy_evaluator_node)
     graph.add_node("aggregator", aggregator_node)
 
     # 설계 자문 파이프라인 노드
@@ -1408,9 +1326,8 @@ def build_graph() -> StateGraph:
     # design_advisor → END
     graph.add_edge("design_advisor", END)
 
-    # strategist → evaluator (순차) → aggregator → END
-    graph.add_edge("strategist", "strategy_evaluator")
-    graph.add_edge("strategy_evaluator", "aggregator")
+    # strategist → aggregator (evaluator 제거: analyst 데이터로 직접 비교)
+    graph.add_edge("strategist", "aggregator")
     graph.add_edge("aggregator", END)
 
     return graph

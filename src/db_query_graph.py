@@ -47,6 +47,7 @@ from src.design_formulas import (
     format_design_report,
 )
 from src.event_timeline import get_timeline
+from src.session_memory import get_memory, reset_memory, DOMAIN_CONFIG
 
 load_dotenv()
 
@@ -131,6 +132,8 @@ class GraphState(TypedDict):
     design_context: str  # 설계 관련 추가 SQL 결과
     # 이벤트 예측 파이프라인 필드
     forecast_context: str  # 전쟁/경제 이벤트 예측 + 자산 위험 분석
+    # 세션 메모리 필드
+    memory_context: str  # 세션 메모리에서 가져온 캐시 컨텍스트
 
 
 # ── 스키마 파싱 유틸리티 ─────────────────────────────────────────
@@ -234,8 +237,27 @@ _DESIGN_KW_WEAK = [
 ]
 
 
+def _get_current_turn(db_path: str) -> tuple[int, int]:
+    """GameInfo에서 현재 연도/월 조회. 실패 시 (0, 0)."""
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        cur = conn.cursor()
+        cur.execute("SELECT GameInfo_Data FROM GameInfo WHERE GameInfo_Varible = 'Current_Year'")
+        year = int(cur.fetchone()[0])
+        cur.execute("SELECT GameInfo_Data FROM GameInfo WHERE GameInfo_Varible = 'Current_Turn'")
+        month = int(cur.fetchone()[0])
+        conn.close()
+        return (year, month)
+    except Exception:
+        return (0, 0)
+
+
 def pre_router_node(state: GraphState) -> dict:
     """키워드 기반 사전 분류. forecast/design이면 SQL 파이프라인 우회."""
+    # 세션 메모리: 현재 게임 턴 업데이트
+    year, month = _get_current_turn(state["db_path"])
+    get_memory().update_turn(year, month)
+
     q = state["user_question"].lower()
 
     # 강한 키워드 1개 = 2점, 약한 키워드 1개 = 1점
@@ -289,6 +311,12 @@ Your job is to break down the user's question into 1-5 sub-queries that can each
 - CarManufactor: production lines per factory. Factory_ID, Lines, Car_ID, Current_Employees, Unit_Cost.
 - CitiesInfo: City_ID, City_NAME, City_COUNTRY, City_POPULATION.
 
+## Previously Retrieved Information (from this session)
+{memory_context}
+
+Use this cached data to avoid redundant queries. If the cached data already answers
+a sub-question, you can skip that sub-query or reduce the number of sub-queries needed.
+
 ## User Question
 {question}
 
@@ -308,9 +336,13 @@ def planner_node(state: GraphState) -> dict:
     llm = create_llm(temperature=0)
     catalog = build_table_catalog()
 
+    memory = get_memory()
+    mem_ctx = memory.format_context()
+
     prompt = PLANNER_PROMPT.format(
         catalog=catalog,
         question=state["user_question"],
+        memory_context=mem_ctx if mem_ctx else "(No cached data)",
     )
     response = llm.invoke(prompt)
     raw = strip_think_tags(response.content)
@@ -351,7 +383,7 @@ def planner_node(state: GraphState) -> dict:
     # 최대 5개로 제한
     sub_queries = sub_queries[:MAX_SUB_QUERIES]
 
-    return {"sub_queries": sub_queries, "current_index": 0}
+    return {"sub_queries": sub_queries, "current_index": 0, "memory_context": mem_ctx}
 
 
 def load_schema_node(state: GraphState) -> dict:
@@ -479,6 +511,9 @@ def advance_node(state: GraphState) -> dict:
 ANALYST_PROMPT = """\
 You are a GearCity business analyst AI.
 The user asked: "{question}"
+
+## Previously Known Information
+{memory_context}
 
 Below are the results from database queries. Analyze them and provide a clear, comprehensive answer.
 
@@ -639,13 +674,34 @@ def analyst_node(state: GraphState) -> dict:
     if errors_parts:
         errors_section = "## Failed Queries\n" + "\n\n".join(errors_parts)
 
+    # 세션 메모리 컨텍스트 주입
+    memory = get_memory()
+    mem_ctx = memory.format_context()
+
     prompt = ANALYST_PROMPT.format(
         question=state["user_question"],
         results_section=results_section,
         errors_section=errors_section,
+        memory_context=mem_ctx if mem_ctx else "(No cached data)",
     )
     response = llm.invoke(prompt)
     answer = strip_think_tags(response.content)
+
+    # 서브쿼리에서 사용된 테이블 수집 → 도메인별로 분류하여 캐시 저장
+    all_tables: set[str] = set()
+    for sq in state["sub_queries"]:
+        all_tables.update(sq.get("relevant_tables", []))
+
+    domains = memory._classify_tables(list(all_tables))
+    for domain in domains:
+        domain_tables = DOMAIN_CONFIG[domain]["tables"] & all_tables
+        domain_results = []
+        for sq in state["sub_queries"]:
+            if set(sq.get("relevant_tables", [])) & domain_tables and sq["result"]:
+                domain_results.append(f"Q: {sq['question']}\n{sq['result']}")
+        if domain_results:
+            memory.put(domain, "\n\n".join(domain_results), domain_tables)
+
     return {"final_answer": answer, "analyst_summary": answer}
 
 
@@ -1148,6 +1204,9 @@ LIMIT 20;
     response = llm.invoke(prompt)
     answer = strip_think_tags(response.content)
 
+    # 세션 메모리에 설계 결과 캐시
+    get_memory().put("vehicle_design", calc_results)
+
     return {
         "final_answer": answer,
         "design_calc_results": calc_results,
@@ -1273,6 +1332,9 @@ def forecast_advisor_node(state: GraphState) -> dict:
     response = llm.invoke(prompt)
     answer = strip_think_tags(response.content)
 
+    # 세션 메모리에 예측 결과 캐시
+    get_memory().put("forecast", forecast_summary + "\n\n" + asset_risk_report)
+
     return {
         "final_answer": answer,
         "forecast_context": forecast_summary + "\n\n" + asset_risk_report,
@@ -1368,7 +1430,108 @@ def build_graph() -> StateGraph:
 
 # ── 실행 함수 ────────────────────────────────────────────────────
 
-def run_query(question: str, db_path: Path) -> str:
+import time as _time
+
+def _format_node_progress(node_name: str, state: dict) -> str | None:
+    """각 노드 완료 시 출력할 요약 메시지. None이면 출력 안 함."""
+    if node_name == "pre_router":
+        qtype = state.get("question_type", "")
+        mem = get_memory()
+        cached_domains = [d for d in mem._cache if mem._cache[d].is_valid(mem._current_turn)]
+        cache_str = f" | 캐시: {', '.join(cached_domains)}" if cached_domains else ""
+        if qtype:
+            return f"사전분류: {qtype} → 전용 파이프라인 직행{cache_str}"
+        return f"사전분류: SQL 파이프라인 진입{cache_str}"
+
+    if node_name == "planner":
+        sqs = state.get("sub_queries", [])
+        if sqs:
+            labels = [f"  {sq['id']}. {sq['question']}" for sq in sqs]
+            tables_all = set()
+            for sq in sqs:
+                tables_all.update(sq.get("relevant_tables", []))
+            return (
+                f"계획 완료: 서브쿼리 {len(sqs)}개\n"
+                + "\n".join(labels)
+                + f"\n  테이블: {', '.join(sorted(tables_all))}"
+            )
+        return None
+
+    if node_name == "load_schema":
+        ctx = state.get("schema_context", "")
+        # 테이블 이름 추출
+        tables = re.findall(r"## Table: (\S+)", ctx)
+        return f"스키마 로드: {', '.join(tables)}" if tables else None
+
+    if node_name == "sql_generator":
+        idx = state.get("current_index", 0)
+        sqs = state.get("sub_queries", [])
+        if idx < len(sqs):
+            sq = sqs[idx]
+            sql = sq.get("sql", "")
+            sql_preview = sql[:120].replace("\n", " ") + ("..." if len(sql) > 120 else "")
+            return f"SQL 생성 ({idx+1}/{len(sqs)}): {sql_preview}"
+        return None
+
+    if node_name == "executor":
+        idx = state.get("current_index", 0)
+        sqs = state.get("sub_queries", [])
+        if idx < len(sqs):
+            sq = sqs[idx]
+            if sq.get("error"):
+                return f"SQL 실행 실패 ({idx+1}/{len(sqs)}): {sq['error'][:80]}"
+            result = sq.get("result", "")
+            rows = result.count("\n") - 1 if result and result != "(No results)" else 0
+            return f"SQL 실행 완료 ({idx+1}/{len(sqs)}): {max(0,rows)}행 반환"
+        return None
+
+    if node_name == "retry":
+        idx = state.get("current_index", 0)
+        sqs = state.get("sub_queries", [])
+        if idx < len(sqs):
+            return f"재시도 ({sqs[idx].get('retry_count',0)}/{MAX_RETRIES})"
+        return None
+
+    if node_name == "advance":
+        idx = state.get("current_index", 0)
+        total = len(state.get("sub_queries", []))
+        return f"다음 서브쿼리로 이동 ({idx}/{total})"
+
+    if node_name == "analyst":
+        summary = state.get("analyst_summary", "")
+        preview = summary[:150].replace("\n", " ") + ("..." if len(summary) > 150 else "")
+        return f"분석 완료: {preview}"
+
+    if node_name == "classifier":
+        return f"질문 유형: {state.get('question_type', '?')}"
+
+    if node_name == "strategist":
+        candidates = state.get("strategy_candidates", [])
+        if candidates:
+            names = [f"  {c['id']}. {c['name']}" for c in candidates]
+            return f"전략 후보 {len(candidates)}개 생성:\n" + "\n".join(names)
+        return None
+
+    if node_name == "strategy_evaluator":
+        evals = state.get("strategy_evaluations", [])
+        if evals:
+            last = evals[-1]
+            return f"전략 평가 완료: {last['strategy_name']} (점수: {last['score']}/10)"
+        return None
+
+    if node_name == "aggregator":
+        return "전략 종합 비교 완료"
+
+    if node_name == "design_advisor":
+        return "설계 자문 완료"
+
+    if node_name == "forecast_advisor":
+        return "이벤트 예측 완료"
+
+    return None
+
+
+def run_query(question: str, db_path: Path, verbose: bool = False) -> str:
     """질문을 받아 최종 답변을 반환한다."""
     if not db_path.exists():
         raise FileNotFoundError(f"DB file not found: {db_path}")
@@ -1394,10 +1557,39 @@ def run_query(question: str, db_path: Path) -> str:
         "design_calc_results": "",
         "design_context": "",
         "forecast_context": "",
+        "memory_context": "",
     }
 
-    result = app.invoke(initial_state)
-    return result["final_answer"]
+    if not verbose:
+        result = app.invoke(initial_state)
+        return result["final_answer"]
+
+    # ── verbose 모드: stream으로 노드별 진행 상황 출력 ──
+    _write = lambda s: (
+        sys.stdout.buffer.write(s.encode("utf-8", errors="replace")),
+        sys.stdout.buffer.flush(),
+    )
+    step = 0
+    t0 = _time.time()
+    last_state = initial_state
+
+    for chunk in app.stream(initial_state, stream_mode="updates"):
+        for node_name, state_update in chunk.items():
+            step += 1
+            elapsed = _time.time() - t0
+            # state 병합 (stream은 delta만 반환)
+            last_state = {**last_state, **state_update}
+            msg = _format_node_progress(node_name, last_state)
+            if msg:
+                header = f"[{elapsed:5.1f}s] Step {step}: {node_name}"
+                _write(f"\033[90m{header}\033[0m\n")
+                for line in msg.split("\n"):
+                    _write(f"\033[90m  {line}\033[0m\n")
+                _write("\n")
+
+    total = _time.time() - t0
+    _write(f"\033[90m[{total:.1f}s] 완료 ({step} steps)\033[0m\n\n")
+    return last_state.get("final_answer", "")
 
 
 # ── 테스트 쿼리 ──────────────────────────────────────────────────
@@ -1421,7 +1613,7 @@ TEST_QUERIES = [
 ]
 
 
-def run_tests(db_path: Path):
+def run_tests(db_path: Path, verbose: bool = False):
     """사전 정의된 테스트 질문을 실행한다."""
     for t in TEST_QUERIES:
         print(f"\n{'=' * 60}")
@@ -1429,16 +1621,18 @@ def run_tests(db_path: Path):
         print(f"    {t['query']}")
         print(f"{'=' * 60}")
         try:
-            answer = run_query(t["query"], db_path)
+            answer = run_query(t["query"], db_path, verbose=verbose)
             print(f"\n{answer}")
         except Exception as e:
             print(f"\nError: {e}")
         print()
 
 
-def run_interactive(db_path: Path):
+def run_interactive(db_path: Path, verbose: bool = True):
     """대화형 모드: 사용자가 자유롭게 질문한다."""
-    print("\n[대화형 모드] 질문을 입력하세요 (quit으로 종료).")
+    reset_memory()  # 새 세션 시작
+    v_label = " (verbose)" if verbose else ""
+    print(f"\n[대화형 모드{v_label}] 질문을 입력하세요 (quit으로 종료).")
     print("한국어/영어 모두 가능합니다.\n")
     while True:
         try:
@@ -1448,8 +1642,8 @@ def run_interactive(db_path: Path):
         if not question or question.lower() in ("quit", "exit", "q"):
             break
         try:
-            print("\n분석 중...\n")
-            answer = run_query(question, db_path)
+            print()
+            answer = run_query(question, db_path, verbose=verbose)
             # Windows cp949 인코딩 문제 방지
             sys.stdout.buffer.write(f"Agent> {answer}\n\n".encode("utf-8", errors="replace"))
             sys.stdout.buffer.flush()
@@ -1463,6 +1657,7 @@ def main():
     db_path = DEFAULT_DB_PATH
     question = None
     test_mode = False
+    verbose = False
 
     args = sys.argv[1:]
     i = 0
@@ -1472,6 +1667,8 @@ def main():
             i += 1
         elif args[i] == "--test":
             test_mode = True
+        elif args[i] in ("-v", "--verbose"):
+            verbose = True
         elif not args[i].startswith("-"):
             db_path = Path(args[i])
         i += 1
@@ -1494,16 +1691,16 @@ def main():
     print()
 
     if test_mode:
-        run_tests(db_path)
+        run_tests(db_path, verbose=verbose)
     elif question:
+        reset_memory()
         print(f"Question: {question}\n")
-        print("분석 중...\n")
-        answer = run_query(question, db_path)
+        answer = run_query(question, db_path, verbose=verbose or True)
         sys.stdout.buffer.write(answer.encode("utf-8", errors="replace"))
         sys.stdout.buffer.write(b"\n")
         sys.stdout.buffer.flush()
     else:
-        run_interactive(db_path)
+        run_interactive(db_path, verbose=True)
 
 
 if __name__ == "__main__":

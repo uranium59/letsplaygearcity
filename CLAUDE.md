@@ -26,6 +26,7 @@ letsplaygearcity/
 │   ├── db_query_graph.py   # ★ LangGraph 멀티스텝 SQL 에이전트 (메인)
 │   ├── design_formulas.py  # 차량 설계 계산 엔진
 │   ├── event_timeline.py   # 전쟁/경제 이벤트 예측 모듈
+│   ├── session_memory.py   # 도메인 기반 세션 캐시
 │   ├── db_agent.py         # ReAct SQL 에이전트 (Phase 1, deprecated)
 │   ├── db_inspector.py     # DB 스키마 → LLM 프롬프트용 텍스트 추출
 │   ├── inspect_db.py       # DB 스키마 분석기 (Markdown 출력)
@@ -56,6 +57,9 @@ User Question → [Pre-Router] (키워드 기반, LLM 호출 없음)
 Pre-Router는 키워드 기반 사전분류로, forecast/design 질문을 SQL 파이프라인 없이 직행시켜 LLM 호출을 5회→1회로 줄인다.
 키워드 매칭 실패 시 기존 SQL 파이프라인 → Classifier 경로로 폴백.
 
+SessionMemory가 pre_router에서 현재 게임 턴을 감지하고, analyst/forecast/design 노드에서
+결과를 도메인별 캐시에 저장한다. 다음 질문에서 Planner/Analyst에 캐시 컨텍스트가 주입된다.
+
 ## Key Scripts
 
 ### src/db_query_graph.py — LangGraph 멀티스텝 SQL 에이전트 ★
@@ -71,10 +75,10 @@ Pre-Router는 키워드 기반 사전분류로, forecast/design 질문을 SQL �
 - **Forecast Advisor**: JSON 타임라인 + 플레이어 자산 위험 교차분석 + LLM 합성
 - 스키마 2단계 전략: Tier 1(71개 테이블 카탈로그 ~3KB) + Tier 2(선택 테이블 전체 스키마)
 ```bash
-PYTHONPATH=. poetry run python src/db_query_graph.py                          # 대화형 모드
-PYTHONPATH=. poetry run python src/db_query_graph.py -q "내 현금이 얼마야?"     # 단일 질문
-PYTHONPATH=. poetry run python src/db_query_graph.py --test                   # 테스트 쿼리 Q1~Q15
-PYTHONPATH=. poetry run python src/db_query_graph.py "D:\path\to\save.db" -q "..."
+poetry run python src/db_query_graph.py                          # 대화형 모드
+poetry run python src/db_query_graph.py -q "내 현금이 얼마야?"     # 단일 질문
+poetry run python src/db_query_graph.py --test                   # 테스트 쿼리 Q1~Q15
+poetry run python src/db_query_graph.py "D:\path\to\save.db" -q "..."
 ```
 
 ### src/design_formulas.py — 차량 설계 계산 엔진
@@ -93,11 +97,19 @@ DB/LLM 의존성 없는 순수 Python 계산 모듈. GearCity 위키 공식 구�
 - `format_forecast_summary()`: LLM 프롬프트용 축약 예측 요약
 - 범위: 196/205 도시에 전쟁 이력 (1899-2019). 9개 영구 안전 도시.
 
+### src/session_memory.py — 도메인 기반 세션 캐시
+대화형 모드에서 질문 간 데이터를 재활용하는 세션 메모리.
+- `DOMAIN_CONFIG`: 5개 도메인별 TTL 및 테이블 매핑
+- `SessionMemory`: get/put/format_context/get_relevant/clear
+- `get_memory()` / `reset_memory()`: 모듈 수준 싱글톤
+- Planner/Analyst 프롬프트에 캐시 컨텍스트 주입 → 중복 SQL 호출 방지
+- 도메인별 TTL: game_state(3), sales_market(5), factory(6), vehicle_design(12), forecast(60)
+
 ### src/db_inspector.py — DB 스키마 추출기
 세이브 파일(.db)의 71개 테이블 스키마를 `data/schema/db_schema_map.txt`로 추출.
 ```bash
-PYTHONPATH=. poetry run python src/db_inspector.py
-PYTHONPATH=. poetry run python src/db_inspector.py data/save/mysave.db -o data/schema/custom_map.txt
+poetry run python src/db_inspector.py
+poetry run python src/db_inspector.py data/save/mysave.db -o data/schema/custom_map.txt
 ```
 
 ### crawler.py — 위키 크롤러
@@ -133,6 +145,6 @@ poetry run python src/test_env.py
 ## Conventions
 - 한국어 주석/문서, 영어 코드
 - Poetry로 의존성 관리 (`poetry add`, `poetry run`)
-- 스크립트 실행 시 `PYTHONPATH=.` 필수 (`from src.xxx import` 패턴)
+- `pyproject.toml`에 `packages = [{include = "src"}]` 설정으로 `from src.xxx import` 패턴 동작
 - 데이터 파일은 `data/` 하위에 용도별 분리
 - 크롤링 시 5초 딜레이 (위키 서버 부하 방지, `.env`의 `WIKI_CRAWL_DELAY`)

@@ -11,7 +11,7 @@ Built as a technical proof-of-concept for a game project (RQI), using a LangGrap
 | Component | Technology |
 |-----------|-----------|
 | Language | Python 3.12 / Poetry |
-| LLM | Qwen 3 30B via Ollama (local, 256k context) |
+| LLM | Qwen 3 30B-A3B via Ollama (local, 256k context) |
 | Orchestration | LangGraph + LangChain |
 | DB | SQLite (GearCity save file = `.db`) |
 | Data | pandas, tabulate |
@@ -29,8 +29,31 @@ poetry run python src/test_env.py
 poetry run python src/db_inspector.py "D:\path\to\save.db"
 
 # Run the AI agent
-PYTHONPATH=. poetry run python src/db_query_graph.py -q "How much cash does my company have?"
+poetry run python src/db_query_graph.py -q "How much cash does my company have?"
 ```
+
+## System Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| OS | Windows 10 / Linux / macOS | Windows 11 |
+| Python | 3.12+ | 3.12 |
+| RAM | 16GB | 32GB+ |
+| VRAM | — (CPU inference possible, very slow) | 24GB+ (RTX 3090/4090, etc.) |
+| Disk | 20GB (model files + dependencies) | — |
+
+Qwen 3 30B-A3B (Q4_K_M quantization) loads ~20GB of model weights.
+If GPU VRAM is sufficient, Ollama automatically loads the model onto the GPU; otherwise it falls back to CPU/RAM.
+GPU inference takes ~2-5 minutes per full pipeline run; CPU inference may take 10+ minutes.
+
+### Why Local LLM Only?
+
+This project is designed exclusively for **local LLM inference via Ollama**.
+There are no plans to support cloud API LLMs (OpenAI, Anthropic, Google, etc.).
+
+- Game data (save files) is local, so keeping inference local is a natural fit
+- Zero running cost — each question triggers 5-10 LLM calls, making API pricing impractical
+- The project's goal is to explore how far a local LLM can go as a game agent
 
 ## Prerequisites
 
@@ -79,6 +102,18 @@ User Question
 | **Design Advisor** | "What if I increase bore by 5mm?" | Python calculation engine (displacement, HP, staleness, mod costs) + LLM synthesis |
 | **Forecast Advisor** | "Will there be a war soon?" | Pre-parsed TurnEvents.xml timeline (wars, recessions, oil crises) + player asset risk cross-reference |
 
+### Session Memory
+
+In interactive mode, a domain-based TTL cache reuses data from previous questions within the same session:
+
+| Domain | TTL (turns) | Cached Data |
+|--------|-------------|-------------|
+| `game_state` | 3 | Year/month/cash/company name |
+| `sales_market` | 5 | Sales/demand/per-city performance |
+| `vehicle_design` | 12 | Vehicle/component specs |
+| `factory` | 6 | Factory/production lines |
+| `forecast` | 60 | War/economic forecasts |
+
 ## Key Modules
 
 ### `src/db_query_graph.py` — Main LangGraph Agent
@@ -86,10 +121,10 @@ User Question
 Multi-step SQL analysis agent with 16 graph nodes. Handles all question types from simple lookups to strategic recommendations.
 
 ```bash
-PYTHONPATH=. poetry run python src/db_query_graph.py                    # Interactive mode
-PYTHONPATH=. poetry run python src/db_query_graph.py -q "query here"    # Single question
-PYTHONPATH=. poetry run python src/db_query_graph.py --test             # Run all test queries (Q1-Q15)
-PYTHONPATH=. poetry run python src/db_query_graph.py "path/to/save.db" -q "..."
+poetry run python src/db_query_graph.py                    # Interactive mode
+poetry run python src/db_query_graph.py -q "query here"    # Single question
+poetry run python src/db_query_graph.py --test             # Run all test queries (Q1-Q15)
+poetry run python src/db_query_graph.py "path/to/save.db" -q "..."
 ```
 
 ### `src/design_formulas.py` — Vehicle Design Calculation Engine
@@ -112,6 +147,13 @@ Loads pre-parsed `data/turn_events_timeline.json` (extracted from TurnEvents.xml
 - `format_forecast_summary()` — condensed LLM-ready event forecast
 
 **Coverage**: 196/205 cities have conflict history (1899-2019). 9 permanent safe havens identified.
+
+### `src/session_memory.py` — Domain-Based Session Cache
+
+Reuses query results across questions in interactive mode.
+- `SessionMemory` class: domain-aware TTL cache (get/put/format_context)
+- `get_memory()` / `reset_memory()`: module-level singleton
+- Injects cache context into Planner/Analyst prompts to reduce redundant SQL calls
 
 ### `src/db_inspector.py` — DB Schema Extractor
 
@@ -141,6 +183,7 @@ letsplaygearcity/
 │   ├── db_query_graph.py         # ★ Main LangGraph multi-step SQL agent
 │   ├── design_formulas.py        # Vehicle design calculation engine
 │   ├── event_timeline.py         # War & economic event forecast
+│   ├── session_memory.py         # Domain-based session cache
 │   ├── db_agent.py               # ReAct SQL agent (v1, deprecated)
 │   ├── db_inspector.py           # DB schema -> text extraction
 │   ├── inspect_db.py             # DB schema analyzer (Markdown)

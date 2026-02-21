@@ -8,7 +8,7 @@ Architecture:
     User Question → Planner → Load Schema → SQL Generator → Executor
     → Router (retry/advance/analyst) → Analyst → Classifier
     → (factual/analytical → END)
-    → (strategic → Strategist → fan_out → [Evaluator]×N → Aggregator → END)
+    → (strategic → Strategist → Evaluator (sequential) → Aggregator → END)
 
 Usage:
     poetry run python src/db_query_graph.py                          # 대화형 모드
@@ -29,8 +29,6 @@ import pandas as pd
 from dotenv import load_dotenv
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, StateGraph
-from langgraph.types import Send
-
 from src.design_formulas import (
     EngineParams,
     ChassisParams,
@@ -63,6 +61,7 @@ CORE_TABLES = [
     "GameInfo", "PlayerInfo", "CompanyList", "CarInfo", "CarDistro",
     "FactoryInfo", "CarManufactor", "CitiesInfo",
     "MonthlyFiscalsBreakdown", "YearlyAutoBreakdown",
+    "ContractsGranted",
 ]
 
 DESIGN_TABLES = [
@@ -102,15 +101,6 @@ class StrategyEvaluation(TypedDict):
     estimated_impact: str
     supporting_data: str
     score: float
-
-
-class StrategyEvalInput(TypedDict):
-    """Send() 페이로드: 개별 전략 평가에 필요한 컨텍스트."""
-    strategy: StrategyCandidate
-    user_question: str
-    analyst_summary: str
-    db_path: str
-    schema_context: str
 
 
 class GraphState(TypedDict):
@@ -310,6 +300,13 @@ Your job is to break down the user's question into 1-5 sub-queries that can each
 - FactoryInfo: Factory_ID, Company_ID, City_ID, CarsInProduction, MaxCarsInProduction.
 - CarManufactor: production lines per factory. Factory_ID, Lines, Car_ID, Current_Employees, Unit_Cost.
 - CitiesInfo: City_ID, City_NAME, City_COUNTRY, City_POPULATION.
+- ContractRequests: available contract opportunities. Active, ProjectName, CustomerName, Units, UnitsPerMonth, UnitCosts, VehicleType. Filter: Active = 1.
+- ContractsGranted: awarded contracts in progress. CompID, ProjectName, UnitPrice, UnitsMovedMonth, UnitsMovedTotal, UnitsNeeded, Active, Penalty.
+  → Player contracts: WHERE CompID = (SELECT Player_Data FROM PlayerInfo WHERE Player_Varible = 'Company_ID')
+- ContractCustomers: contract customer profiles with spec requirements (HP, weight, fuel, engine size limits). IsMilitary flag.
+- CarInfo has license/rebadge columns: Creator_ID (original designer), RoyalityComp/RoyalityPayment (royalty), RebadgeBuyFromCompID/RebadgeBuyPrice (rebadge purchase), OutSourced_Units/OutSourced_Income (outsourcing).
+  → Licensed cars: WHERE Creator_ID != Company_ID OR RoyalityComp != -1
+  → Rebadged cars: WHERE RebadgeBuyFromCompID != -1
 
 ## Previously Retrieved Information (from this session)
 {memory_context}
@@ -411,6 +408,9 @@ Write a single SELECT query to answer the question below.
 - GameInfo is KEY-VALUE: SELECT GameInfo_Data FROM GameInfo WHERE GameInfo_Varible = 'Current_Year'
 - Current_Turn in GameInfo = current month (1-12). 1 turn = 1 month in GearCity.
 - To filter by player company, use subquery: Company_ID = (SELECT Player_Data FROM PlayerInfo WHERE Player_Varible = 'Company_ID')
+- ContractRequests: Active contracts available for bidding. Filter Active = 1.
+- ContractsGranted: Awarded contracts. Filter by player company same as CarInfo.
+- License/rebadge in CarInfo: RoyalityComp != -1 means licensed, RebadgeBuyFromCompID != -1 means rebadged.
 
 ## Question
 {question}
@@ -806,97 +806,87 @@ def strategist_node(state: GraphState) -> dict:
     return {"strategy_candidates": candidates}
 
 
-def fan_out_strategies(state: GraphState) -> list[Send]:
-    """각 전략 후보에 대해 병렬 Evaluator Send() 생성."""
-    sends = []
-    for strategy in state.get("strategy_candidates", []):
-        payload = StrategyEvalInput(
-            strategy=strategy,
-            user_question=state["user_question"],
-            analyst_summary=state.get("analyst_summary", ""),
-            db_path=state["db_path"],
-            schema_context=state.get("schema_context", ""),
-        )
-        sends.append(Send("strategy_evaluator", payload))
-    return sends
+def strategy_evaluator_node(state: GraphState) -> dict:
+    """모든 전략 후보를 순차 평가. (Send() 병렬 실행 시 GPU 경쟁→데드락 방지)
 
-
-def strategy_evaluator_node(state: StrategyEvalInput) -> dict:
-    """개별 전략 평가: 추가 SQL 최대 3개 실행 + LLM 평가."""
-    strategy = state["strategy"]
+    각 전략에 대해: 추가 SQL 1개 실행 + LLM 평가를 순차적으로 수행한다.
+    """
+    candidates = state.get("strategy_candidates", [])
     db_path = state["db_path"]
     analyst_summary = state.get("analyst_summary", "")
+    all_evaluations: list[StrategyEvaluation] = []
 
-    # 추가 데이터 수집: 전략별 SQL 최대 3개
-    additional_data_parts = []
-    schema_text = extract_table_schemas(strategy["relevant_tables"])
-    if not schema_text:
-        schema_text = extract_table_schemas(CORE_TABLES)
+    for strategy in candidates:
+        # 추가 데이터 수집: 전략별 SQL 최대 1개
+        additional_data_parts = []
+        schema_text = extract_table_schemas(strategy["relevant_tables"])
+        if not schema_text:
+            schema_text = extract_table_schemas(CORE_TABLES)
 
-    llm = create_llm(temperature=0)
-    for query_text in strategy["data_queries"][:3]:
-        # SQL 생성
-        sql_prompt = EVALUATOR_SQL_PROMPT.format(
-            schema=schema_text,
-            question=query_text,
+        llm = create_llm(temperature=0)
+        for query_text in strategy["data_queries"][:1]:
+            # SQL 생성
+            sql_prompt = EVALUATOR_SQL_PROMPT.format(
+                schema=schema_text,
+                question=query_text,
+            )
+            sql_response = llm.invoke(sql_prompt)
+            sql_raw = strip_think_tags(sql_response.content)
+            sql = clean_sql(sql_raw)
+
+            if not sql or not sql.strip():
+                continue
+
+            # SQL 실행
+            try:
+                conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+                df = pd.read_sql_query(sql, conn)
+                conn.close()
+                if df.empty:
+                    result_str = "(No results)"
+                else:
+                    result_str = df.head(20).to_markdown(index=False)
+                additional_data_parts.append(f"Q: {query_text}\n{result_str}")
+            except Exception:
+                additional_data_parts.append(f"Q: {query_text}\n(Query failed)")
+
+        additional_data = "\n\n".join(additional_data_parts) if additional_data_parts else "(No additional data)"
+
+        # LLM 평가
+        eval_llm = create_llm(temperature=0.3)
+        eval_prompt = EVALUATOR_PROMPT.format(
+            question=state["user_question"],
+            strategy_name=strategy["name"],
+            strategy_description=strategy["description"],
+            analyst_summary=analyst_summary,
+            additional_data=additional_data,
         )
-        sql_response = llm.invoke(sql_prompt)
-        sql_raw = strip_think_tags(sql_response.content)
-        sql = clean_sql(sql_raw)
+        eval_response = eval_llm.invoke(eval_prompt)
+        eval_raw = strip_think_tags(eval_response.content)
 
-        if not sql or not sql.strip():
-            continue
-
-        # SQL 실행
+        # 파싱
+        pros = _extract_field(eval_raw, "PROS", "N/A")
+        cons = _extract_field(eval_raw, "CONS", "N/A")
+        feasibility = _extract_field(eval_raw, "FEASIBILITY", "MEDIUM")
+        impact = _extract_field(eval_raw, "IMPACT", "MEDIUM")
+        score_str = _extract_field(eval_raw, "SCORE", "5")
         try:
-            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-            df = pd.read_sql_query(sql, conn)
-            conn.close()
-            if df.empty:
-                result_str = "(No results)"
-            else:
-                result_str = df.head(20).to_markdown(index=False)
-            additional_data_parts.append(f"Q: {query_text}\n{result_str}")
-        except Exception:
-            # SQL 실행 실패해도 계속 진행
-            additional_data_parts.append(f"Q: {query_text}\n(Query failed)")
+            score = float(re.search(r"[\d.]+", score_str).group())
+        except (AttributeError, ValueError):
+            score = 5.0
 
-    additional_data = "\n\n".join(additional_data_parts) if additional_data_parts else "(No additional data)"
+        all_evaluations.append(StrategyEvaluation(
+            strategy_id=strategy["id"],
+            strategy_name=strategy["name"],
+            pros=pros,
+            cons=cons,
+            feasibility=feasibility,
+            estimated_impact=impact,
+            supporting_data=additional_data,
+            score=score,
+        ))
 
-    # LLM 평가
-    eval_llm = create_llm(temperature=0.3)
-    eval_prompt = EVALUATOR_PROMPT.format(
-        question=state["user_question"],
-        strategy_name=strategy["name"],
-        strategy_description=strategy["description"],
-        analyst_summary=analyst_summary,
-        additional_data=additional_data,
-    )
-    eval_response = eval_llm.invoke(eval_prompt)
-    eval_raw = strip_think_tags(eval_response.content)
-
-    # 파싱
-    pros = _extract_field(eval_raw, "PROS", "N/A")
-    cons = _extract_field(eval_raw, "CONS", "N/A")
-    feasibility = _extract_field(eval_raw, "FEASIBILITY", "MEDIUM")
-    impact = _extract_field(eval_raw, "IMPACT", "MEDIUM")
-    score_str = _extract_field(eval_raw, "SCORE", "5")
-    try:
-        score = float(re.search(r"[\d.]+", score_str).group())
-    except (AttributeError, ValueError):
-        score = 5.0
-
-    evaluation = StrategyEvaluation(
-        strategy_id=strategy["id"],
-        strategy_name=strategy["name"],
-        pros=pros,
-        cons=cons,
-        feasibility=feasibility,
-        estimated_impact=impact,
-        supporting_data=additional_data,
-        score=score,
-    )
-    return {"strategy_evaluations": [evaluation]}
+    return {"strategy_evaluations": all_evaluations}
 
 
 def _extract_field(text: str, field_name: str, default: str) -> str:
@@ -1418,10 +1408,8 @@ def build_graph() -> StateGraph:
     # design_advisor → END
     graph.add_edge("design_advisor", END)
 
-    # strategist → fan_out → 병렬 evaluators
-    graph.add_conditional_edges("strategist", fan_out_strategies, ["strategy_evaluator"])
-
-    # evaluators → aggregator → END
+    # strategist → evaluator (순차) → aggregator → END
+    graph.add_edge("strategist", "strategy_evaluator")
     graph.add_edge("strategy_evaluator", "aggregator")
     graph.add_edge("aggregator", END)
 
@@ -1515,8 +1503,8 @@ def _format_node_progress(node_name: str, state: dict) -> str | None:
     if node_name == "strategy_evaluator":
         evals = state.get("strategy_evaluations", [])
         if evals:
-            last = evals[-1]
-            return f"전략 평가 완료: {last['strategy_name']} (점수: {last['score']}/10)"
+            lines = [f"  {ev['strategy_name']}: {ev['score']}/10" for ev in evals]
+            return f"전략 평가 완료 ({len(evals)}개, 순차):\n" + "\n".join(lines)
         return None
 
     if node_name == "aggregator":

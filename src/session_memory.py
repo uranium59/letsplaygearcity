@@ -9,6 +9,7 @@ GearCity Session Memory — 도메인 기반 세션 캐시
     sales_market   (TTL  5턴): CarDistro, CitiesInfo, MonthlyFiscalsBreakdown, YearlyAutoBreakdown
     vehicle_design (TTL 12턴): CarInfo, EngineInfo, ChassisInfo, GearboxInfo, Researching
     factory        (TTL  6턴): FactoryInfo, CarManufactor
+    contracts      (TTL  6턴): ContractRequests, ContractsGranted, ContractCustomers, ContractBids
     forecast       (TTL 60턴): (event_timeline.py 결과, DB 테이블 없음)
 """
 
@@ -32,6 +33,10 @@ DOMAIN_CONFIG: dict[str, dict] = {
     "factory": {
         "ttl": 6,
         "tables": {"FactoryInfo", "CarManufactor"},
+    },
+    "contracts": {
+        "ttl": 6,
+        "tables": {"ContractRequests", "ContractsGranted", "ContractCustomers", "ContractBids"},
     },
     "forecast": {
         "ttl": 60,

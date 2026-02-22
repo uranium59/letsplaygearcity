@@ -322,6 +322,10 @@ Your job is to break down the user's question into 1-5 sub-queries that can each
 - CarInfo has license/rebadge columns: Creator_ID (original designer), RoyalityComp/RoyalityPayment (royalty), RebadgeBuyFromCompID/RebadgeBuyPrice (rebadge purchase), OutSourced_Units/OutSourced_Income (outsourcing).
   → Licensed cars: WHERE Creator_ID != Company_ID OR RoyalityComp != -1
   → Rebadged cars: WHERE RebadgeBuyFromCompID != -1
+- CompanyList.SKILL_RND: player's design skill level. Components require SkillReq <= SKILL_RND to use.
+- *Components tables (GearboxComponents, GearsComponents, LayoutComponents, CylinderComponents, InductionComponents, SuspensionComponents, ValveComponents, FuelComponents, DrivetrainComponents): component library with SkillReq, playerUnlocked, Year (unlock year), Death (obsolete year).
+  → Available components: WHERE SkillReq <= (player SKILL_RND) AND Year <= (current year) AND (Death IS NULL OR Death > current year)
+- Researching: active research progress. Type (1-3), Percent, CompanyID.
 
 ## Previously Retrieved Information (from this session)
 {memory_context}
@@ -426,6 +430,7 @@ Write a single SELECT query to answer the question below.
 - ContractRequests: Active contracts available for bidding. Filter Active = 1.
 - ContractsGranted: Awarded contracts. Filter by player company same as CarInfo.
 - License/rebadge in CarInfo: RoyalityComp != -1 means licensed, RebadgeBuyFromCompID != -1 means rebadged.
+- Component availability: *Components tables have SkillReq (design skill needed) and Year (unlock year). Filter: SkillReq <= player's SKILL_RND from CompanyList, Year <= current year, AND (Death IS NULL OR Death > current year).
 
 ## Question
 {question}
@@ -883,6 +888,17 @@ Use the Python-calculated data below AND your knowledge of design formulas to gi
 - Static = at design time, Current = now (with tech progression)
 - Negative delta = design is falling behind current technology
 
+## Technology Constraints
+Player's design skill (SKILL_RND): {skill_rnd}
+Current year: {current_year}
+
+### Available Components (SkillReq <= {skill_rnd} AND Year <= {current_year})
+{tech_context}
+
+CRITICAL: Only recommend components from the available list above.
+Do NOT suggest components the player cannot build yet.
+If an upgrade would require unavailable components, explicitly state it's locked.
+
 ## User Question
 {question}
 
@@ -900,7 +916,8 @@ Instructions:
 2. Give concrete recommendations with expected numeric outcomes
 3. Prioritize by cost-effectiveness (biggest improvement per dollar)
 4. Warn about any compatibility issues or urgent staleness
-5. Answer in the same language as the user's question."""
+5. Answer in the same language as the user's question.
+6. NEVER recommend components not in the Available Components list — they are locked by tech level."""
 
 
 def design_advisor_node(state: GraphState) -> dict:
@@ -974,6 +991,93 @@ LIMIT 20;
 
     except Exception as e:
         design_context = f"(SQL 오류: {e})"
+
+    # ── Step 1.5: 플레이어 기술 레벨 + 사용 가능 컴포넌트 조회 ──
+    skill_rnd = 0
+    tech_context = ""
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+
+        tech_sql = """\
+SELECT SKILL_RND FROM CompanyList
+WHERE ID = (SELECT Player_Data FROM PlayerInfo WHERE Player_Varible = 'Company_ID');"""
+        cursor = conn.execute(tech_sql)
+        skill_row = cursor.fetchone()
+        if skill_row:
+            skill_rnd = int(skill_row[0])
+
+        available_components_sql = """\
+SELECT 'Gearbox' AS category, gc.Name, gc.SkillReq, gc.Year,
+       gg.Name AS gears_name, gg.Gears, gg.SkillReq AS gears_skill, gg.Year AS gears_year
+FROM GearboxComponents gc
+CROSS JOIN GearsComponents gg
+WHERE gc.SkillReq <= {skill} AND gc.Year <= {year}
+  AND gg.SkillReq <= {skill} AND gg.Year <= {year}
+  AND (gc.Death IS NULL OR gc.Death > {year})
+  AND (gg.Death IS NULL OR gg.Death > {year})
+
+UNION ALL
+
+SELECT 'Layout' AS category, Name, SkillReq, Year, NULL, NULL, NULL, NULL
+FROM LayoutComponents WHERE SkillReq <= {skill} AND Year <= {year} AND (Death IS NULL OR Death > {year})
+
+UNION ALL
+
+SELECT 'Induction' AS category, Name, SkillReq, Year, NULL, NULL, NULL, NULL
+FROM InductionComponents WHERE SkillReq <= {skill} AND Year <= {year} AND (Death IS NULL OR Death > {year})
+
+UNION ALL
+
+SELECT 'Fuel' AS category, Name, SkillReq, Year, NULL, NULL, NULL, NULL
+FROM FuelComponents WHERE SkillReq <= {skill} AND Year <= {year} AND (Death IS NULL OR Death > {year})
+
+UNION ALL
+
+SELECT 'Drivetrain' AS category, Name, SkillReq, Year, NULL, NULL, NULL, NULL
+FROM DrivetrainComponents WHERE SkillReq <= {skill} AND Year <= {year} AND (Death IS NULL OR Death > {year})
+
+UNION ALL
+
+SELECT 'Suspension' AS category, Name, SkillReq, Year, NULL, NULL, NULL, NULL
+FROM SuspensionComponents WHERE SkillReq <= {skill} AND Year <= {year} AND (Death IS NULL OR Death > {year})
+
+UNION ALL
+
+SELECT 'Valve' AS category, Name, SkillReq, Year, NULL, NULL, NULL, NULL
+FROM ValveComponents WHERE SkillReq <= {skill} AND Year <= {year} AND (Death IS NULL OR Death > {year})
+
+UNION ALL
+
+SELECT 'Cylinder' AS category, Name, SkillReq, Year, NULL, NULL, NULL, NULL
+FROM CylinderComponents WHERE SkillReq <= {skill} AND Year <= {year} AND (Death IS NULL OR Death > {year});
+""".format(skill=skill_rnd, year=current_year)
+
+        comp_df = pd.read_sql_query(available_components_sql, conn)
+        conn.close()
+
+        # 카테고리별 요약 포맷
+        if not comp_df.empty:
+            parts = []
+            for cat, group in comp_df.groupby("category"):
+                if cat == "Gearbox":
+                    items = []
+                    for _, r in group.iterrows():
+                        items.append(f"  - {r['Name']} + {r['gears_name']} ({int(r['Gears'])}speed) [Skill {int(r['SkillReq'])}/{int(r['gears_skill'])}, Year {int(r['Year'])}/{int(r['gears_year'])}]")
+                    # 중복 제거
+                    items = sorted(set(items))
+                    parts.append(f"**{cat}** ({len(items)} combos):\n" + "\n".join(items))
+                else:
+                    items = []
+                    for _, r in group.iterrows():
+                        items.append(f"  - {r['Name']} [Skill {int(r['SkillReq'])}, Year {int(r['Year'])}]")
+                    items = sorted(set(items))
+                    parts.append(f"**{cat}** ({len(items)}):\n" + "\n".join(items))
+            tech_context = "\n\n".join(parts)
+        else:
+            tech_context = "(No components available at current skill/year)"
+
+    except Exception as e:
+        tech_context = f"(기술 가용성 조회 오류: {e})"
 
     # ── Step 2: Python 계산 ──
     calc_results = ""
@@ -1109,6 +1213,9 @@ LIMIT 20;
         analyst_summary=analyst_summary,
         calc_results=calc_results,
         design_context=design_context if len(design_context) < 8000 else design_context[:8000] + "\n...(truncated)",
+        skill_rnd=skill_rnd,
+        current_year=current_year,
+        tech_context=tech_context if len(tech_context) < 4000 else tech_context[:4000] + "\n...(truncated)",
     )
     response = llm.invoke(prompt)
     answer = strip_think_tags(response.content)

@@ -29,12 +29,8 @@ from src.event_timeline import get_timeline
 from src.session_memory import get_memory
 
 
-def design_advisor_node(state: GraphState) -> dict:
-    """설계 자문 노드: SQL 데이터 수집 → Python 계산 → LLM 합성."""
-    db_path = state["db_path"]
-    analyst_summary = state.get("analyst_summary", "")
-
-    # ── Step 1: 추가 SQL — 플레이어 차량+엔진+샤시+기어박스 JOIN ──
+def _fetch_vehicle_data(db_path: str) -> tuple[list[dict], str, int]:
+    """Step 1: DB에서 차량+엔진+샤시+기어박스 JOIN + 현재 연도."""
     design_context = ""
     rows = []
     current_year = 1900
@@ -43,7 +39,6 @@ def design_advisor_node(state: GraphState) -> dict:
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         conn.row_factory = sqlite3.Row
 
-        # 현재 연도
         cursor = conn.execute(CURRENT_YEAR_SQL)
         year_row = cursor.fetchone()
         if year_row:
@@ -52,7 +47,6 @@ def design_advisor_node(state: GraphState) -> dict:
             except (ValueError, TypeError):
                 pass
 
-        # 차량 데이터
         cursor = conn.execute(DESIGN_VEHICLE_SQL)
         rows = [dict(r) for r in cursor.fetchall()]
         conn.close()
@@ -66,7 +60,11 @@ def design_advisor_node(state: GraphState) -> dict:
     except Exception as e:
         design_context = f"(SQL 오류: {e})"
 
-    # ── Step 1.5: 플레이어 기술 레벨 + 사용 가능 컴포넌트 조회 ──
+    return rows, design_context, current_year
+
+
+def _fetch_tech_components(db_path: str, current_year: int) -> tuple[int, str]:
+    """Step 1.5: 기술 레벨 + 사용 가능 컴포넌트."""
     skill_rnd = 0
     tech_context = ""
     try:
@@ -83,7 +81,6 @@ def design_advisor_node(state: GraphState) -> dict:
         comp_df = pd.read_sql_query(available_components_sql, conn)
         conn.close()
 
-        # 카테고리별 요약 포맷
         if not comp_df.empty:
             parts = []
             for cat, group in comp_df.groupby("category"):
@@ -91,7 +88,6 @@ def design_advisor_node(state: GraphState) -> dict:
                     items = []
                     for _, r in group.iterrows():
                         items.append(f"  - {r['Name']} + {r['gears_name']} ({int(r['Gears'])}speed) [Skill {int(r['SkillReq'])}/{int(r['gears_skill'])}, Year {int(r['Year'])}/{int(r['gears_year'])}]")
-                    # 중복 제거
                     items = sorted(set(items))
                     parts.append(f"**{cat}** ({len(items)} combos):\n" + "\n".join(items))
                 else:
@@ -107,12 +103,14 @@ def design_advisor_node(state: GraphState) -> dict:
     except Exception as e:
         tech_context = f"(기술 가용성 조회 오류: {e})"
 
-    # ── Step 2: Python 계산 ──
-    calc_results = ""
+    return skill_rnd, tech_context
+
+
+def _calculate_design_metrics(rows: list[dict], current_year: int) -> str:
+    """Step 2: Python 계산 (노후화, 개선비용, 토크, 레이팅, 보어 시뮬)."""
     try:
         all_reports = []
         for row in rows:
-            # 데이터클래스 구성
             engine = EngineParams(
                 engine_id=row.get("Engine_ID", 0),
                 bore=row.get("bore", 0) or 0,
@@ -229,12 +227,27 @@ def design_advisor_node(state: GraphState) -> dict:
             )
             all_reports.append(f"--- {vehicle.name} {vehicle.trim} (ID: {vehicle.car_id}) ---\n{report}")
 
-        calc_results = "\n\n".join(all_reports) if all_reports else "(계산 대상 차량 없음)"
+        return "\n\n".join(all_reports) if all_reports else "(계산 대상 차량 없음)"
 
     except Exception as e:
-        calc_results = f"(Python 계산 오류: {e})"
+        return f"(Python 계산 오류: {e})"
 
-    # ── Step 3: LLM 합성 ──
+
+def design_advisor_node(state: GraphState) -> dict:
+    """설계 자문 노드: SQL 데이터 수집 → Python 계산 → LLM 합성."""
+    db_path = state["db_path"]
+    analyst_summary = state.get("analyst_summary", "")
+
+    # Step 1: DB에서 차량 데이터 + 현재 연도 조회
+    rows, design_context, current_year = _fetch_vehicle_data(db_path)
+
+    # Step 1.5: 기술 레벨 + 사용 가능 컴포넌트 조회
+    skill_rnd, tech_context = _fetch_tech_components(db_path, current_year)
+
+    # Step 2: Python 계산
+    calc_results = _calculate_design_metrics(rows, current_year)
+
+    # Step 3: LLM 합성
     llm = create_llm(temperature=0.3)
     prompt = DESIGN_ADVISOR_PROMPT.format(
         question=state["user_question"],

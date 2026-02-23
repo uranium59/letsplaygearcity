@@ -56,7 +56,7 @@ def analyst_node(state: GraphState) -> dict:
     for sq in state["sub_queries"]:
         all_tables.update(sq.get("relevant_tables", []))
 
-    domains = memory._classify_tables(list(all_tables))
+    domains = memory.classify_tables(list(all_tables))
     for domain in domains:
         domain_tables = DOMAIN_CONFIG[domain]["tables"] & all_tables
         domain_results = []

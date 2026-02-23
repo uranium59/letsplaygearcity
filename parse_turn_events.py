@@ -3,8 +3,15 @@
 import sys, os
 import xml.etree.ElementTree as ET
 from collections import defaultdict
+from dotenv import load_dotenv
 if sys.platform == "win32": sys.stdout.reconfigure(encoding="utf-8")
-XML_PATH = "D:/SteamLibrary/steamapps/common/GearCity/media/Maps/Base City Map/scripts/TurnEvents.xml"
+
+load_dotenv()
+
+DEFAULT_XML_PATH = os.getenv(
+    "GEARCITY_TURN_EVENTS_XML",
+    "D:/SteamLibrary/steamapps/common/GearCity/media/Maps/Base City Map/scripts/TurnEvents.xml",
+)
 
 def parse_xml(p):
     if not os.path.isfile(p): print("ERROR: not found:",p); sys.exit(1)
@@ -79,14 +86,15 @@ def fmt_val(v):
     if v is None: return "      N/A "
     return f"{v:10.4f}"
 
-def main():
+def main(xml_path: str | None = None):
+    path = xml_path or DEFAULT_XML_PATH
     SEP="="*105
     print(SEP)
     print("GEARCITY TurnEvents.xml -- COMPREHENSIVE TIMELINE ANALYSIS")
     print(SEP)
-    print("Source:",XML_PATH)
+    print("Source:",path)
     print()
-    root=parse_xml(XML_PATH)
+    root=parse_xml(path)
     yels=root.findall("year")
     yn=[int(y.get("y")) for y in yels]
     tt=sum(len(y.findall("turn")) for y in yels)
@@ -324,4 +332,5 @@ def main():
     print(SEP)
 
 if __name__=="__main__":
-    main()
+    p = sys.argv[1] if len(sys.argv) > 1 else None
+    main(p)

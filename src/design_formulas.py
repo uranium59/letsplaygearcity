@@ -12,6 +12,40 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+# ── 엔진/물리 공식 상수 ──────────────────────────────────────────
+DISPLACEMENT_CONSTANT = 0.7854      # π/4, 실린더 체적 공식
+HP_CONVERSION_FACTOR = 5252         # HP = (torque × RPM) / 5252
+HP_TO_WATTS = 745.7                 # 1 HP = 745.7W
+AIR_DENSITY = 1.225                 # kg/m³ (해수면 표준)
+SQFT_TO_SQM = 0.0929               # ft² → m² 변환
+MS_TO_KMH = 3.6                    # m/s → km/h 변환
+ACCEL_EMPIRICAL_K = 28.0           # 0-100kph 경험 상수
+GEAR_EXPONENT = 0.15               # 기어 수 지수
+
+# ── 노후화 (Staleness) ──────────────────────────────────────────
+COMPONENT_SAFE_AGE = 12            # 컴포넌트 안전 연수
+COMPONENT_STEEP_AGE = 15           # 가속 페널티 시작 연수
+COMPONENT_PENALTY_RATE = 0.05      # 12~15년 연간 페널티
+COMPONENT_STEEP_RATE = 0.25        # 15년 이후 연간 페널티
+VEHICLE_AGE_OFFSET = 4             # 차량 유효 나이 보정
+VEHICLE_STALENESS_TRIGGER = 9      # 페널티 시작 유효 나이
+VEHICLE_STALENESS_DIVISOR = 10.0   # 정규화 제수
+VEHICLE_STALENESS_EXPONENT = 1.6   # 차량 노후화 지수
+BUYER_DIVISOR_EXPONENT = 1.2       # 구매자 평가 감소 지수
+SAFE_VEHICLE_AGE = 5               # 차량 안전 연수 (리포트용)
+
+# ── 노후화 긴급도 임계값 ─────────────────────────────────────────
+URGENCY_CRITICAL = 3.0
+URGENCY_HIGH = 2.0
+URGENCY_MEDIUM = 1.5
+URGENCY_LOW = 1.0
+
+# ── 개선 비용 비율 (%) ──────────────────────────────────────────
+MOD_BASE_PERCENT = 15              # 기본 New Generation
+MOD_ENGINE_PERCENT = 5             # 엔진 변경 추가
+MOD_GEARBOX_PERCENT = 5           # 기어박스 변경 추가
+MOD_CHASSIS_PERCENT = 100          # 샤시 변경 (전체 재설계)
+
 
 # ── 데이터클래스 ─────────────────────────────────────────────────
 
@@ -124,18 +158,18 @@ class VehicleParams:
 # ── A2. 엔진 계산 함수 ──────────────────────────────────────────
 
 def calc_displacement(bore_mm: float, stroke_mm: float, cylinders: int) -> int:
-    """배기량 계산: CC = 0.7854 * (bore/10)^2 * (stroke/10) * cylinders"""
+    """배기량 계산: CC = DISPLACEMENT_CONSTANT * (bore/10)^2 * (stroke/10) * cylinders"""
     bore_cm = bore_mm / 10.0
     stroke_cm = stroke_mm / 10.0
-    cc = 0.7854 * (bore_cm ** 2) * stroke_cm * cylinders
+    cc = DISPLACEMENT_CONSTANT * (bore_cm ** 2) * stroke_cm * cylinders
     return round(cc)
 
 
 def calc_hp(torque: int, rpm: int) -> int:
-    """마력 계산: HP = (torque * rpm) / 5252"""
+    """마력 계산: HP = (torque * rpm) / HP_CONVERSION_FACTOR"""
     if rpm <= 0:
         return 0
-    return round((torque * rpm) / 5252)
+    return round((torque * rpm) / HP_CONVERSION_FACTOR)
 
 
 def simulate_bore_change(params: EngineParams, new_bore: float) -> dict:
@@ -221,22 +255,22 @@ def simulate_stroke_change(params: EngineParams, new_stroke: float) -> dict:
 def calc_top_speed(hp: int, weight_kg: float, drag_coeff: float, area: float) -> float:
     """위키 공식 간소화: 최고속도 추정 (km/h).
 
-    power_watts = HP * 745.7
-    v_cubed = power_watts / (Cd * 0.5 * 1.225 * area * 0.0929)
-    top_speed = v_cubed^(1/3) * 3.6  (m/s → km/h)
+    power_watts = HP * HP_TO_WATTS
+    v_cubed = power_watts / (Cd * 0.5 * AIR_DENSITY * area * SQFT_TO_SQM)
+    top_speed = v_cubed^(1/3) * MS_TO_KMH  (m/s → km/h)
     """
     if hp <= 0 or drag_coeff <= 0 or area <= 0:
         return 0.0
 
-    power_w = hp * 745.7
-    # area는 게임 내부 단위 (sq ft → sq m 변환: * 0.0929)
-    denominator = drag_coeff * 0.5 * 1.225 * area * 0.0929
+    power_w = hp * HP_TO_WATTS
+    # area는 게임 내부 단위 (sq ft → sq m 변환)
+    denominator = drag_coeff * 0.5 * AIR_DENSITY * area * SQFT_TO_SQM
     if denominator <= 0:
         return 0.0
 
     v_cubed = power_w / denominator
     v_ms = v_cubed ** (1.0 / 3.0)
-    return round(v_ms * 3.6, 1)
+    return round(v_ms * MS_TO_KMH, 1)
 
 
 def calc_acceleration(hp: int, torque: int, weight_kg: float,
@@ -244,19 +278,19 @@ def calc_acceleration(hp: int, torque: int, weight_kg: float,
     """0-100kph 가속 시간 추정 (초).
 
     간소화된 공식:
-    effective_force = torque * lo_ratio * (gears^0.15) / weight_kg
-    time_100 ≈ 28 / effective_force  (경험적 상수)
+    effective_force = torque * lo_ratio * (gears^GEAR_EXPONENT) / weight_kg
+    time_100 ≈ ACCEL_EMPIRICAL_K / effective_force
     """
     if weight_kg <= 0 or lo_ratio <= 0 or torque <= 0:
         return 0.0
 
-    gear_factor = max(gears, 1) ** 0.15
+    gear_factor = max(gears, 1) ** GEAR_EXPONENT
     effective_force = (torque * lo_ratio * gear_factor) / weight_kg
 
     if effective_force <= 0:
         return 0.0
 
-    return round(28.0 / effective_force, 1)
+    return round(ACCEL_EMPIRICAL_K / effective_force, 1)
 
 
 # ── A4. 개선(Modification) 비용 추정 ────────────────────────────
@@ -269,41 +303,41 @@ def estimate_modification_cost(
 ) -> dict:
     """위키 규칙에 따른 New Generation/Trim 개선 비용 추정.
 
-    | 변경 내용               | 비율       |
-    |------------------------|-----------|
-    | 기본 (변경 없음)         | 15%       |
-    | 기어박스만 변경           | 20%       |
-    | 엔진만 변경 (기어박스 5%  | 25%       |
-    |   자동 포함)             |           |
-    | 엔진+기어박스 변경        | 25%       |
-    | 샤시 변경               | 100%      |
+    | 변경 내용               | 비율                |
+    |------------------------|---------------------|
+    | 기본 (변경 없음)         | MOD_BASE_PERCENT    |
+    | 기어박스만 변경           | +MOD_GEARBOX_PERCENT|
+    | 엔진만 변경 (기어박스     | +ENGINE+GEARBOX     |
+    |   자동 포함)             |                     |
+    | 엔진+기어박스 변경        | +ENGINE+GEARBOX     |
+    | 샤시 변경               | MOD_CHASSIS_PERCENT |
     """
     if chassis_change:
         return {
-            "base_percent": 100,
-            "component_percents": {"chassis": 100},
-            "total_percent": 100,
+            "base_percent": MOD_CHASSIS_PERCENT,
+            "component_percents": {"chassis": MOD_CHASSIS_PERCENT},
+            "total_percent": MOD_CHASSIS_PERCENT,
             "estimated_cost": vehicle_design_cost,
             "cost_breakdown_text": (
-                "샤시 변경 시 100% 비용 (사실상 신규 설계와 동일).\n"
+                f"샤시 변경 시 {MOD_CHASSIS_PERCENT}% 비용 (사실상 신규 설계와 동일).\n"
                 f"예상 비용: ${vehicle_design_cost:,}"
             ),
         }
 
-    base_percent = 15
-    component_percents = {"base_new_generation": 15}
+    base_percent = MOD_BASE_PERCENT
+    component_percents = {"base_new_generation": MOD_BASE_PERCENT}
 
     if engine_change and gearbox_change:
-        component_percents["engine+gearbox"] = 10
-        total = base_percent + 10
+        component_percents["engine+gearbox"] = MOD_ENGINE_PERCENT + MOD_GEARBOX_PERCENT
+        total = base_percent + MOD_ENGINE_PERCENT + MOD_GEARBOX_PERCENT
     elif engine_change:
-        # 엔진 변경 시 기어박스 5%도 자동 포함
-        component_percents["engine"] = 5
-        component_percents["gearbox_auto"] = 5
-        total = base_percent + 10
+        # 엔진 변경 시 기어박스도 자동 포함
+        component_percents["engine"] = MOD_ENGINE_PERCENT
+        component_percents["gearbox_auto"] = MOD_GEARBOX_PERCENT
+        total = base_percent + MOD_ENGINE_PERCENT + MOD_GEARBOX_PERCENT
     elif gearbox_change:
-        component_percents["gearbox"] = 5
-        total = base_percent + 5
+        component_percents["gearbox"] = MOD_GEARBOX_PERCENT
+        total = base_percent + MOD_GEARBOX_PERCENT
     else:
         total = base_percent
 
@@ -311,11 +345,11 @@ def estimate_modification_cost(
 
     lines = [f"기본 New Generation: {base_percent}%"]
     if engine_change and gearbox_change:
-        lines.append("엔진+기어박스 변경: +10%")
+        lines.append(f"엔진+기어박스 변경: +{MOD_ENGINE_PERCENT + MOD_GEARBOX_PERCENT}%")
     elif engine_change:
-        lines.append("엔진 변경: +5% (기어박스 자동 +5% 포함)")
+        lines.append(f"엔진 변경: +{MOD_ENGINE_PERCENT}% (기어박스 자동 +{MOD_GEARBOX_PERCENT}% 포함)")
     elif gearbox_change:
-        lines.append("기어박스 변경: +5%")
+        lines.append(f"기어박스 변경: +{MOD_GEARBOX_PERCENT}%")
     lines.append(f"합계: {total}% → 예상 비용: ${estimated_cost:,}")
 
     return {
@@ -332,23 +366,23 @@ def estimate_modification_cost(
 def _component_staleness(age: int) -> float:
     """컴포넌트(엔진/샤시/기어박스) 노후화 계수.
 
-    age > 12 → (age-12)*0.05
-    age > 15 → 추가로 (age-15)*0.25
+    age > COMPONENT_SAFE_AGE → (age-COMPONENT_SAFE_AGE)*COMPONENT_PENALTY_RATE
+    age > COMPONENT_STEEP_AGE → 추가로 (age-COMPONENT_STEEP_AGE)*COMPONENT_STEEP_RATE
     """
     penalty = 0.0
-    if age > 12:
-        penalty += (age - 12) * 0.05
-    if age > 15:
-        penalty += (age - 15) * 0.25
+    if age > COMPONENT_SAFE_AGE:
+        penalty += (age - COMPONENT_SAFE_AGE) * COMPONENT_PENALTY_RATE
+    if age > COMPONENT_STEEP_AGE:
+        penalty += (age - COMPONENT_STEEP_AGE) * COMPONENT_STEEP_RATE
     return penalty
 
 
 def _vehicle_staleness(age: int) -> float:
-    """차량 노후화 계수: ((age+4)/10)^1.6 (age+4 > 9일 때)."""
-    effective = age + 4
-    if effective <= 9:
+    """차량 노후화 계수: ((age+VEHICLE_AGE_OFFSET)/VEHICLE_STALENESS_DIVISOR)^VEHICLE_STALENESS_EXPONENT."""
+    effective = age + VEHICLE_AGE_OFFSET
+    if effective <= VEHICLE_STALENESS_TRIGGER:
         return 0.0
-    return (effective / 10.0) ** 1.6
+    return (effective / VEHICLE_STALENESS_DIVISOR) ** VEHICLE_STALENESS_EXPONENT
 
 
 def calc_staleness(current_year: int, car_year: int,
@@ -375,20 +409,20 @@ def calc_staleness(current_year: int, car_year: int,
     collective_age = 1.0 + car_penalty + engine_penalty + chassis_penalty + gearbox_penalty
 
     if collective_age > 1.0:
-        buyer_divisor = collective_age ** 1.2
+        buyer_divisor = collective_age ** BUYER_DIVISOR_EXPONENT
     else:
         buyer_divisor = 1.0
 
     percent_retained = round(100.0 / buyer_divisor, 1) if buyer_divisor > 0 else 0.0
 
     # Urgency 판정
-    if buyer_divisor >= 3.0:
+    if buyer_divisor >= URGENCY_CRITICAL:
         urgency = "critical"
-    elif buyer_divisor >= 2.0:
+    elif buyer_divisor >= URGENCY_HIGH:
         urgency = "high"
-    elif buyer_divisor >= 1.5:
+    elif buyer_divisor >= URGENCY_MEDIUM:
         urgency = "medium"
-    elif buyer_divisor > 1.0:
+    elif buyer_divisor > URGENCY_LOW:
         urgency = "low"
     else:
         urgency = "none"
@@ -399,13 +433,13 @@ def calc_staleness(current_year: int, car_year: int,
         "percent_retained": percent_retained,
         "component_details": {
             "vehicle": {"age": car_age, "penalty": round(car_penalty, 3),
-                        "note": f"차량 나이 {car_age}년" + (" (5년 이하: 안전)" if car_age <= 5 else "")},
+                        "note": f"차량 나이 {car_age}년" + (f" ({SAFE_VEHICLE_AGE}년 이하: 안전)" if car_age <= SAFE_VEHICLE_AGE else "")},
             "engine": {"age": engine_age, "penalty": round(engine_penalty, 3),
-                       "note": f"엔진 나이 {engine_age}년" + (" (12년 이하: 안전)" if engine_age <= 12 else "")},
+                       "note": f"엔진 나이 {engine_age}년" + (f" ({COMPONENT_SAFE_AGE}년 이하: 안전)" if engine_age <= COMPONENT_SAFE_AGE else "")},
             "chassis": {"age": chassis_age, "penalty": round(chassis_penalty, 3),
-                        "note": f"샤시 나이 {chassis_age}년" + (" (12년 이하: 안전)" if chassis_age <= 12 else "")},
+                        "note": f"샤시 나이 {chassis_age}년" + (f" ({COMPONENT_SAFE_AGE}년 이하: 안전)" if chassis_age <= COMPONENT_SAFE_AGE else "")},
             "gearbox": {"age": gearbox_age, "penalty": round(gearbox_penalty, 3),
-                        "note": f"기어박스 나이 {gearbox_age}년" + (" (12년 이하: 안전)" if gearbox_age <= 12 else "")},
+                        "note": f"기어박스 나이 {gearbox_age}년" + (f" ({COMPONENT_SAFE_AGE}년 이하: 안전)" if gearbox_age <= COMPONENT_SAFE_AGE else "")},
         },
         "urgency": urgency,
     }

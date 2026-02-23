@@ -128,6 +128,14 @@ class SessionMemory:
             parts.append(f"[Cached: {domain} ({age}턴 전)]\n{data_preview}")
         return "\n\n".join(parts)
 
+    def classify_tables(self, tables: list[str]) -> set[str]:
+        """테이블 목록 → 관련 도메인 집합. (public API)"""
+        return self._classify_tables(tables)
+
+    def get_valid_domains(self) -> list[str]:
+        """현재 턴 기준 유효한 캐시 도메인 목록."""
+        return [d for d in self._cache if self._cache[d].is_valid(self._current_turn)]
+
     def clear(self):
         """전체 캐시 초기화."""
         self._cache.clear()

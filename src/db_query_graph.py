@@ -137,103 +137,123 @@ def build_graph() -> StateGraph:
 
 # ── 실행 함수 ────────────────────────────────────────────────────
 
+def _fmt_pre_router(state: dict) -> str | None:
+    qtype = state.get("question_type", "")
+    mem = get_memory()
+    cached_domains = mem.get_valid_domains()
+    cache_str = f" | 캐시: {', '.join(cached_domains)}" if cached_domains else ""
+    if qtype:
+        return f"사전분류: {qtype} → 전용 파이프라인 직행{cache_str}"
+    return f"사전분류: SQL 파이프라인 진입{cache_str}"
+
+
+def _fmt_planner(state: dict) -> str | None:
+    sqs = state.get("sub_queries", [])
+    if sqs:
+        labels = [f"  {sq['id']}. {sq['question']}" for sq in sqs]
+        tables_all = set()
+        for sq in sqs:
+            tables_all.update(sq.get("relevant_tables", []))
+        return (
+            f"계획 완료: 서브쿼리 {len(sqs)}개\n"
+            + "\n".join(labels)
+            + f"\n  테이블: {', '.join(sorted(tables_all))}"
+        )
+    return None
+
+
+def _fmt_load_schema(state: dict) -> str | None:
+    ctx = state.get("schema_context", "")
+    tables = re.findall(r"## Table: (\S+)", ctx)
+    return f"스키마 로드: {', '.join(tables)}" if tables else None
+
+
+def _fmt_sql_generator(state: dict) -> str | None:
+    idx = state.get("current_index", 0)
+    sqs = state.get("sub_queries", [])
+    if idx < len(sqs):
+        sq = sqs[idx]
+        sql = sq.get("sql", "")
+        sql_preview = sql[:120].replace("\n", " ") + ("..." if len(sql) > 120 else "")
+        return f"SQL 생성 ({idx+1}/{len(sqs)}): {sql_preview}"
+    return None
+
+
+def _fmt_executor(state: dict) -> str | None:
+    idx = state.get("current_index", 0)
+    sqs = state.get("sub_queries", [])
+    if idx < len(sqs):
+        sq = sqs[idx]
+        if sq.get("error"):
+            return f"SQL 실행 실패 ({idx+1}/{len(sqs)}): {sq['error'][:80]}"
+        result = sq.get("result", "")
+        rows = result.count("\n") - 1 if result and result != "(No results)" else 0
+        return f"SQL 실행 완료 ({idx+1}/{len(sqs)}): {max(0,rows)}행 반환"
+    return None
+
+
+def _fmt_retry(state: dict) -> str | None:
+    idx = state.get("current_index", 0)
+    sqs = state.get("sub_queries", [])
+    if idx < len(sqs):
+        return f"재시도 ({sqs[idx].get('retry_count',0)}/{MAX_RETRIES})"
+    return None
+
+
+def _fmt_advance(state: dict) -> str | None:
+    idx = state.get("current_index", 0)
+    total = len(state.get("sub_queries", []))
+    return f"다음 서브쿼리로 이동 ({idx}/{total})"
+
+
+def _fmt_analyst(state: dict) -> str | None:
+    summary = state.get("analyst_summary", "")
+    preview = summary[:150].replace("\n", " ") + ("..." if len(summary) > 150 else "")
+    return f"분석 완료: {preview}"
+
+
+def _fmt_classifier(state: dict) -> str | None:
+    return f"질문 유형: {state.get('question_type', '?')}"
+
+
+def _fmt_strategist(state: dict) -> str | None:
+    candidates = state.get("strategy_candidates", [])
+    if candidates:
+        names = [f"  {c['id']}. {c['name']}" for c in candidates]
+        return f"전략 후보 {len(candidates)}개 생성:\n" + "\n".join(names)
+    return None
+
+
+def _fmt_strategy_evaluator(state: dict) -> str | None:
+    evals = state.get("strategy_evaluations", [])
+    if evals:
+        lines = [f"  {ev['strategy_name']}: {ev['score']}/10" for ev in evals]
+        return f"전략 평가 완료 ({len(evals)}개, 순차):\n" + "\n".join(lines)
+    return None
+
+
+_NODE_FORMATTERS: dict[str, callable] = {
+    "pre_router": _fmt_pre_router,
+    "planner": _fmt_planner,
+    "load_schema": _fmt_load_schema,
+    "sql_generator": _fmt_sql_generator,
+    "executor": _fmt_executor,
+    "retry": _fmt_retry,
+    "advance": _fmt_advance,
+    "analyst": _fmt_analyst,
+    "classifier": _fmt_classifier,
+    "strategist": _fmt_strategist,
+    "strategy_evaluator": _fmt_strategy_evaluator,
+    "aggregator": lambda _: "전략 종합 비교 완료",
+    "design_advisor": lambda _: "설계 자문 완료",
+    "forecast_advisor": lambda _: "이벤트 예측 완료",
+}
+
+
 def _format_node_progress(node_name: str, state: dict) -> str | None:
     """각 노드 완료 시 출력할 요약 메시지. None이면 출력 안 함."""
-    if node_name == "pre_router":
-        qtype = state.get("question_type", "")
-        mem = get_memory()
-        cached_domains = [d for d in mem._cache if mem._cache[d].is_valid(mem._current_turn)]
-        cache_str = f" | 캐시: {', '.join(cached_domains)}" if cached_domains else ""
-        if qtype:
-            return f"사전분류: {qtype} → 전용 파이프라인 직행{cache_str}"
-        return f"사전분류: SQL 파이프라인 진입{cache_str}"
-
-    if node_name == "planner":
-        sqs = state.get("sub_queries", [])
-        if sqs:
-            labels = [f"  {sq['id']}. {sq['question']}" for sq in sqs]
-            tables_all = set()
-            for sq in sqs:
-                tables_all.update(sq.get("relevant_tables", []))
-            return (
-                f"계획 완료: 서브쿼리 {len(sqs)}개\n"
-                + "\n".join(labels)
-                + f"\n  테이블: {', '.join(sorted(tables_all))}"
-            )
-        return None
-
-    if node_name == "load_schema":
-        ctx = state.get("schema_context", "")
-        # 테이블 이름 추출
-        tables = re.findall(r"## Table: (\S+)", ctx)
-        return f"스키마 로드: {', '.join(tables)}" if tables else None
-
-    if node_name == "sql_generator":
-        idx = state.get("current_index", 0)
-        sqs = state.get("sub_queries", [])
-        if idx < len(sqs):
-            sq = sqs[idx]
-            sql = sq.get("sql", "")
-            sql_preview = sql[:120].replace("\n", " ") + ("..." if len(sql) > 120 else "")
-            return f"SQL 생성 ({idx+1}/{len(sqs)}): {sql_preview}"
-        return None
-
-    if node_name == "executor":
-        idx = state.get("current_index", 0)
-        sqs = state.get("sub_queries", [])
-        if idx < len(sqs):
-            sq = sqs[idx]
-            if sq.get("error"):
-                return f"SQL 실행 실패 ({idx+1}/{len(sqs)}): {sq['error'][:80]}"
-            result = sq.get("result", "")
-            rows = result.count("\n") - 1 if result and result != "(No results)" else 0
-            return f"SQL 실행 완료 ({idx+1}/{len(sqs)}): {max(0,rows)}행 반환"
-        return None
-
-    if node_name == "retry":
-        idx = state.get("current_index", 0)
-        sqs = state.get("sub_queries", [])
-        if idx < len(sqs):
-            return f"재시도 ({sqs[idx].get('retry_count',0)}/{MAX_RETRIES})"
-        return None
-
-    if node_name == "advance":
-        idx = state.get("current_index", 0)
-        total = len(state.get("sub_queries", []))
-        return f"다음 서브쿼리로 이동 ({idx}/{total})"
-
-    if node_name == "analyst":
-        summary = state.get("analyst_summary", "")
-        preview = summary[:150].replace("\n", " ") + ("..." if len(summary) > 150 else "")
-        return f"분석 완료: {preview}"
-
-    if node_name == "classifier":
-        return f"질문 유형: {state.get('question_type', '?')}"
-
-    if node_name == "strategist":
-        candidates = state.get("strategy_candidates", [])
-        if candidates:
-            names = [f"  {c['id']}. {c['name']}" for c in candidates]
-            return f"전략 후보 {len(candidates)}개 생성:\n" + "\n".join(names)
-        return None
-
-    if node_name == "strategy_evaluator":
-        evals = state.get("strategy_evaluations", [])
-        if evals:
-            lines = [f"  {ev['strategy_name']}: {ev['score']}/10" for ev in evals]
-            return f"전략 평가 완료 ({len(evals)}개, 순차):\n" + "\n".join(lines)
-        return None
-
-    if node_name == "aggregator":
-        return "전략 종합 비교 완료"
-
-    if node_name == "design_advisor":
-        return "설계 자문 완료"
-
-    if node_name == "forecast_advisor":
-        return "이벤트 예측 완료"
-
-    return None
+    formatter = _NODE_FORMATTERS.get(node_name)
+    return formatter(state) if formatter else None
 
 
 def run_query(question: str, db_path: Path, verbose: bool = False) -> str:

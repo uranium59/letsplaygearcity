@@ -13,6 +13,34 @@ from pathlib import Path
 
 TIMELINE_PATH = Path(__file__).resolve().parent.parent / "data" / "turn_events_timeline.json"
 
+# ── 경제 이벤트 감지 임계값 ──────────────────────────────────────
+BUYRATE_DOWNTURN_THRESHOLD = 0.90   # 수요 침체 기준 (below)
+GAS_SPIKE_THRESHOLD = 2.0           # 유가 급등 기준 (above)
+INTEREST_SPIKE_THRESHOLD = 1.06     # 금리 급등 기준 (above)
+STOCKRATE_CRASH_THRESHOLD = 0.90    # 주식 폭락 기준 (below)
+
+# ── 자산 위험도 등급 (years_until_conflict 기준) ──────────────────
+RISK_YEARS_CRITICAL = 0.0   # 현재 분쟁 중
+RISK_YEARS_HIGH = 2          # 2년 이내
+RISK_YEARS_MEDIUM = 5        # 5년 이내
+RISK_YEARS_LOW = 10          # 10년 이내
+RISK_YEARS_SAFE = 999.0      # 기본값 (안전)
+
+# ── 전쟁 심각도 순위 ─────────────────────────────────────────────
+WAR_SEVERITY_RANK = {"TOTAL_WAR": 3, "WAR": 2, "LIMITED": 1}
+
+# ── 경제 이벤트 설정 (반복 호출 제거용) ──────────────────────────
+ECONOMIC_EVENT_CONFIGS = [
+    {"key": "buyrate",   "threshold": BUYRATE_DOWNTURN_THRESHOLD, "direction": "below",
+     "event_type": "downturn",       "desc_fn": lambda v: f"수요 침체 (buyrate 최저 {v:.4f})"},
+    {"key": "gas",       "threshold": GAS_SPIKE_THRESHOLD,        "direction": "above",
+     "event_type": "gas_spike",      "desc_fn": lambda v: f"유가 급등 (gas 최고 {v:.4f})"},
+    {"key": "interest",  "threshold": INTEREST_SPIKE_THRESHOLD,   "direction": "above",
+     "event_type": "interest_spike", "desc_fn": lambda v: f"금리 급등 (interest 최고 {v:.4f})"},
+    {"key": "stockrate", "threshold": STOCKRATE_CRASH_THRESHOLD,  "direction": "below",
+     "event_type": "stock_crash",    "desc_fn": lambda v: f"주식시장 폭락 (stockrate 최저 {v:.4f})"},
+]
+
 # Gov status labels
 GOV_LABELS = {
     "TOTAL_WAR": "총력전 (판매 불가, 공장 파괴 위험)",
@@ -113,26 +141,11 @@ class EventTimeline:
         if not years:
             return
 
-        # Detect downturns (buyrate < 0.90)
-        self._detect_threshold_events(
-            econ, years, "buyrate", 0.90, "below", "downturn",
-            lambda v: f"수요 침체 (buyrate 최저 {v:.4f})",
-        )
-        # Detect gas spikes (gas > 2.0)
-        self._detect_threshold_events(
-            econ, years, "gas", 2.0, "above", "gas_spike",
-            lambda v: f"유가 급등 (gas 최고 {v:.4f})",
-        )
-        # Detect interest spikes (interest > 1.06)
-        self._detect_threshold_events(
-            econ, years, "interest", 1.06, "above", "interest_spike",
-            lambda v: f"금리 급등 (interest 최고 {v:.4f})",
-        )
-        # Detect stock crashes (stockrate < 0.90)
-        self._detect_threshold_events(
-            econ, years, "stockrate", 0.90, "below", "stock_crash",
-            lambda v: f"주식시장 폭락 (stockrate 최저 {v:.4f})",
-        )
+        for cfg in ECONOMIC_EVENT_CONFIGS:
+            self._detect_threshold_events(
+                econ, years, cfg["key"], cfg["threshold"], cfg["direction"],
+                cfg["event_type"], cfg["desc_fn"],
+            )
 
     def _detect_threshold_events(
         self, econ, years, key, threshold, direction, event_type, desc_fn
@@ -241,7 +254,7 @@ class EventTimeline:
                         city_name=sh["name"],
                         country=sh["country"],
                         risk_level="SAFE",
-                        years_until_conflict=999.0,
+                        years_until_conflict=RISK_YEARS_SAFE,
                     )
             return CityRisk(city_id=city_id, city_name=f"Unknown_{city_id}",
                            country="Unknown", risk_level="SAFE")
@@ -257,14 +270,14 @@ class EventTimeline:
         if not upcoming:
             return CityRisk(
                 city_id=city_id, city_name=city_name, country=country,
-                risk_level="SAFE", years_until_conflict=999.0,
+                risk_level="SAFE", years_until_conflict=RISK_YEARS_SAFE,
             )
 
         # Calculate years until next conflict
         future_starts = [wp.start_year + wp.start_month / 12
                         for wp in upcoming if wp.start_year >= current_year]
         current_time = current_year + 0.5  # mid-year estimate
-        years_until = min(s - current_time for s in future_starts) if future_starts else 0.0
+        years_until = min(s - current_time for s in future_starts) if future_starts else RISK_YEARS_CRITICAL
 
         # Check if currently in conflict
         active = [wp for wp in upcoming
@@ -281,12 +294,12 @@ class EventTimeline:
 
         if active:
             risk = "CRITICAL"
-            years_until = 0.0
-        elif years_until <= 2:
+            years_until = RISK_YEARS_CRITICAL
+        elif years_until <= RISK_YEARS_HIGH:
             risk = "HIGH"
-        elif years_until <= 5:
+        elif years_until <= RISK_YEARS_MEDIUM:
             risk = "MEDIUM"
-        elif years_until <= 10:
+        elif years_until <= RISK_YEARS_LOW:
             risk = "LOW"
         else:
             risk = "SAFE"
@@ -339,7 +352,7 @@ class EventTimeline:
             for country in sorted(by_country.keys()):
                 wps = by_country[country]
                 cities = sorted(set(wp.city_name for wp in wps))
-                worst = max(wps, key=lambda w: {"TOTAL_WAR": 3, "WAR": 2, "LIMITED": 1}.get(w.severity, 0))
+                worst = max(wps, key=lambda w: WAR_SEVERITY_RANK.get(w.severity, 0))
                 min_start = min(wp.start_year for wp in wps)
                 max_end = max(wp.end_year for wp in wps)
                 active = any(wp.start_year <= current_year <= wp.end_year for wp in wps)

@@ -5,6 +5,7 @@ design_advisor, forecast_advisor
 """
 
 import sqlite3
+from pathlib import Path
 
 import pandas as pd
 
@@ -24,6 +25,7 @@ from src.design_formulas import (
     estimate_modification_cost,
     simulate_bore_change,
     format_design_report,
+    analyze_slider_health,
 )
 from src.event_timeline import get_timeline
 from src.session_memory import get_memory
@@ -104,6 +106,197 @@ def _fetch_tech_components(db_path: str, current_year: int) -> tuple[int, str]:
         tech_context = f"(기술 가용성 조회 오류: {e})"
 
     return skill_rnd, tech_context
+
+
+# ── 위키 레퍼런스 로드 ──────────────────────────────────────────
+
+_DESIGN_REF_DIR = Path(__file__).resolve().parent.parent / "data" / "wiki"
+
+
+def _load_design_reference(component_type: str) -> str:
+    """design_ref_{type}.md 파일 로드."""
+    path = _DESIGN_REF_DIR / f"design_ref_{component_type}.md"
+    return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+_ENGINE_KW = ["엔진", "engine", "bore", "stroke", "실린더", "cylinder", "hp",
+              "마력", "토크", "torque", "rpm", "배기량", "displacement"]
+_CHASSIS_KW = ["샤시", "chassis", "서스펜션", "suspension", "프레임", "frame",
+               "브레이크", "brake", "차체"]
+_GEARBOX_KW = ["기어박스", "gearbox", "변속기", "기어", "gear", "변속"]
+_GENERAL_KW = ["슬라이더", "slider", "설계", "design", "개선", "improve",
+               "최적", "optim", "업그레이드", "upgrade", "전체", "모든", "all"]
+
+
+def _select_design_references(question: str) -> str:
+    """질문 키워드에 따라 관련 위키 레퍼런스 선택 주입."""
+    q = question.lower()
+    refs = [_load_design_reference("vehicle")]  # 항상 포함
+
+    need_all = any(kw in q for kw in _GENERAL_KW)
+    if need_all or any(kw in q for kw in _ENGINE_KW):
+        refs.append(_load_design_reference("engine"))
+    if need_all or any(kw in q for kw in _CHASSIS_KW):
+        refs.append(_load_design_reference("chassis"))
+    if need_all or any(kw in q for kw in _GEARBOX_KW):
+        refs.append(_load_design_reference("gearbox"))
+
+    combined = "\n\n---\n\n".join(r for r in refs if r)
+    if len(combined) > 12000:
+        combined = combined[:12000] + "\n...(truncated)"
+    return combined
+
+
+# ── 슬라이더 컨텍스트 포맷팅 ─────────────────────────────────────
+
+def _fv(v) -> str:
+    """Format slider float value."""
+    if v is None:
+        return "?"
+    try:
+        return f"{float(v):.2f}"
+    except (ValueError, TypeError):
+        return "?"
+
+
+def _iv(v) -> str:
+    """Format integer value."""
+    if v is None:
+        return "?"
+    try:
+        return str(int(round(float(v))))
+    except (ValueError, TypeError):
+        return "?"
+
+
+def _bv(v) -> str:
+    """Format boolean value."""
+    if v is None:
+        return "?"
+    return "Yes" if v else "No"
+
+
+def _format_slider_context(rows: list[dict]) -> str:
+    """모든 차량의 슬라이더 현재 값 + DB 레이팅을 구조화된 텍스트로 포맷."""
+    if not rows:
+        return "(활성 차량 없음)"
+
+    parts = []
+    for row in rows:
+        car_name = f"{row.get('Name', '?')} {row.get('Trim', '')}"
+
+        # ── Engine ──
+        section = f"### Engine: {row.get('engine_name', '?')}\n"
+        section += (f"Layout: displace={_fv(row.get('slider_displace'))}, "
+                    f"length={_fv(row.get('slider_length'))}, "
+                    f"width={_fv(row.get('slider_width'))}, "
+                    f"weight={_fv(row.get('slider_weight'))}\n")
+        section += (f"Performance: rpm={_fv(row.get('slider_rpm'))}, "
+                    f"torq={_fv(row.get('slider_torq'))}, "
+                    f"eco={_fv(row.get('slider_eco'))}\n")
+        section += (f"Focus: performance={_fv(row.get('slider_designperformance'))}, "
+                    f"fuel_eco={_fv(row.get('slider_designfueleco'))}, "
+                    f"dependability={_fv(row.get('slider_designdependability'))}\n")
+        section += (f"Tech: materials={_fv(row.get('slider_materials'))}, "
+                    f"techniques={_fv(row.get('slider_techniques'))}, "
+                    f"tech={_fv(row.get('slider_tech'))}, "
+                    f"components={_fv(row.get('slider_compoenents'))}\n")
+        section += f"Design Pace: {_fv(row.get('engine_design_pace'))}\n"
+        section += (f"DB Ratings: Power={_iv(row.get('StaticenginePower'))}→{_iv(row.get('enginePower'))}, "
+                    f"FuelEco={_iv(row.get('StaticengineFuelEco'))}→{_iv(row.get('engineFuelEco'))}, "
+                    f"Reliability={_iv(row.get('StaticengineReliability'))}→{_iv(row.get('engineReliability'))}, "
+                    f"Smooth={_iv(row.get('StaticRating_Smooth'))}→{_iv(row.get('Rating_Smooth'))} (static→current)")
+
+        # ── Chassis ──
+        ch = f"\n### Chassis: {row.get('chassis_name', '?')}\n"
+        ch += (f"Frame: L={_fv(row.get('FD_Length'))}, W={_fv(row.get('FD_Width'))}, "
+               f"H={_fv(row.get('FD_Height'))}, Weight={_fv(row.get('FD_Weight'))}, "
+               f"EngW={_fv(row.get('FD_ENG_Width'))}, EngL={_fv(row.get('FD_ENG_Length'))}\n")
+        ch += (f"Suspension: Stability={_fv(row.get('SUS_Stability'))}, "
+               f"Comfort={_fv(row.get('SUS_Comfort'))}, "
+               f"Performance={_fv(row.get('SUS_Performance'))}, "
+               f"Braking={_fv(row.get('SUS_Braking'))}, "
+               f"Durability={_fv(row.get('SUS_Durability'))}\n")
+        ch += (f"Design: Performance={_fv(row.get('ch_DE_Performance'))}, "
+               f"Control={_fv(row.get('DE_Control'))}, "
+               f"Strength={_fv(row.get('DE_Str'))}, "
+               f"Depend={_fv(row.get('DE_Depend'))}\n")
+        ch += (f"Tech: Materials={_fv(row.get('ch_TECH_Materials'))}, "
+               f"Components={_fv(row.get('ch_TECH_Compoenents'))}, "
+               f"Techniques={_fv(row.get('ch_TECH_Techniques'))}, "
+               f"Tech={_fv(row.get('ch_TECH_Tech'))}\n")
+        ch += (f"DB Ratings: STR={_iv(row.get('StaticOverallStrength'))}→{_iv(row.get('Overall_Strength'))}, "
+               f"COM={_iv(row.get('StaticOverallComfort'))}→{_iv(row.get('Overall_Comfort'))}, "
+               f"PERF={_iv(row.get('StaticOverallPerformance'))}→{_iv(row.get('Overall_Performance'))}, "
+               f"DEP={_iv(row.get('StaticOverallDependabilty'))}→{_iv(row.get('Overall_Dependabilty'))} (static→current)")
+
+        # ── Gearbox ──
+        gb = f"\n### Gearbox: {row.get('gearbox_name', '?')} ({_iv(row.get('Gears'))} speed)\n"
+        gb += (f"Design: perf={_fv(row.get('g_de_performance'))}, "
+               f"fuel={_fv(row.get('de_fuel'))}, "
+               f"depend={_fv(row.get('de_depend'))}, "
+               f"comfort={_fv(row.get('de_comfort'))}\n")
+        gb += (f"Tech: material={_fv(row.get('Tech_Material'))}, "
+               f"parts={_fv(row.get('Tech_Parts'))}, "
+               f"techniques={_fv(row.get('g_Tech_Techniques'))}, "
+               f"tech={_fv(row.get('g_Tech_Tech'))}\n")
+        gb += (f"Features: Reverse={_bv(row.get('Reverse'))}, "
+               f"Overdrive={_bv(row.get('Overdrive'))}, "
+               f"LimitedSlip={_bv(row.get('Limited'))}, "
+               f"Transaxle={_bv(row.get('Transaxle'))}\n")
+        gb += (f"DB Ratings: Power={_iv(row.get('StaticPowerRating'))}→{_iv(row.get('PowerRating'))}, "
+               f"Fuel={_iv(row.get('StaticFuelRating'))}→{_iv(row.get('FuelRating'))}, "
+               f"Perf={_iv(row.get('StaticPerformanceRating'))}→{_iv(row.get('PerformanceRating'))}, "
+               f"Rely={_iv(row.get('StaticReliabiltyRating'))}→{_iv(row.get('ReliabiltyRating'))}, "
+               f"Comfort={_iv(row.get('StaticComfortRating'))}→{_iv(row.get('ComfortRating'))} (static→current)")
+
+        # ── Vehicle ──
+        v = f"\n### Vehicle: {car_name}\n"
+        v += (f"Interior: Style={_fv(row.get('Scroll_InteriorStyle'))}, "
+              f"Inno={_fv(row.get('Scroll_InteriorInno'))}, "
+              f"Luxury={_fv(row.get('Scroll_InteriorLux'))}, "
+              f"Comfort={_fv(row.get('Scroll_InteriorComf'))}, "
+              f"Safety={_fv(row.get('Scroll_InteriorSafe'))}, "
+              f"Tech={_fv(row.get('Scroll_InteriorTech'))}\n")
+        v += (f"Materials: MatQual={_fv(row.get('Scroll_MatMatQual'))}, "
+              f"InterQual={_fv(row.get('Scroll_MatMatInterQual'))}, "
+              f"PaintQual={_fv(row.get('Scroll_MatPaintQual'))}, "
+              f"ManuTech={_fv(row.get('Scroll_MatManuTech'))}\n")
+        v += (f"Design: Style={_fv(row.get('Scroll_DesignStyle'))}, "
+              f"Luxury={_fv(row.get('Scroll_DesignLux'))}, "
+              f"Safety={_fv(row.get('Scroll_DesignSafety'))}, "
+              f"Cargo={_fv(row.get('Scroll_DesignCargo'))}, "
+              f"Depend={_fv(row.get('Scroll_DesignDepend'))}\n")
+        v += (f"Testing: Demo={_fv(row.get('Scroll_TestDemo'))}, "
+              f"Perf={_fv(row.get('Scroll_TestPerform'))}, "
+              f"Fuel={_fv(row.get('Scroll_TestFuel'))}, "
+              f"Comfort={_fv(row.get('Scroll_TestComf'))}, "
+              f"Util={_fv(row.get('Scroll_TestUtil'))}, "
+              f"Reli={_fv(row.get('Scroll_TestReli'))}\n")
+        v += (f"Demographics: Gender={_iv(row.get('DemoGender'))}, "
+              f"Age={_iv(row.get('DemoAge'))}, "
+              f"Income={_iv(row.get('DemoIncome'))}\n")
+        v += (f"Vehicle Ratings: Perf={_iv(row.get('Rating_Performance'))}, "
+              f"Drive={_iv(row.get('Rating_Drivability'))}, "
+              f"Luxury={_iv(row.get('Rating_Luxury'))}, "
+              f"Safety={_iv(row.get('Rating_Safety'))}, "
+              f"Fuel={_iv(row.get('Rating_Fuel'))}, "
+              f"Power={_iv(row.get('Rating_Power'))}, "
+              f"Cargo={_iv(row.get('Rating_Cargo'))}, "
+              f"Quality={_iv(row.get('Rating_Quality'))}, "
+              f"Depend={_iv(row.get('Rating_Dependability'))}, "
+              f"Overall={_iv(row.get('Rating_Overall'))}")
+
+        # ── Slider Health Warnings ──
+        health_warnings = analyze_slider_health(row)
+        if health_warnings:
+            health_section = "\n### ⚠ Slider Health Warnings\n" + "\n".join(health_warnings)
+        else:
+            health_section = "\n### ✓ Slider Health: OK (no extreme values detected)"
+
+        parts.append(f"## {car_name}\n{section}{ch}{gb}{v}{health_section}")
+
+    return "\n\n".join(parts)
 
 
 def _calculate_design_metrics(rows: list[dict], current_year: int) -> str:
@@ -247,6 +440,10 @@ def design_advisor_node(state: GraphState) -> dict:
     # Step 2: Python 계산
     calc_results = _calculate_design_metrics(rows, current_year)
 
+    # Step 2.5: 슬라이더 컨텍스트 + 위키 레퍼런스 생성
+    slider_context = _format_slider_context(rows)
+    design_reference = _select_design_references(state["user_question"])
+
     # Step 3: LLM 합성
     llm = create_llm(temperature=0.3)
     prompt = DESIGN_ADVISOR_PROMPT.format(
@@ -257,6 +454,8 @@ def design_advisor_node(state: GraphState) -> dict:
         skill_rnd=skill_rnd,
         current_year=current_year,
         tech_context=tech_context if len(tech_context) < 4000 else tech_context[:4000] + "\n...(truncated)",
+        slider_context=slider_context if len(slider_context) < 8000 else slider_context[:8000] + "\n...(truncated)",
+        design_reference=design_reference,
     )
     response = llm.invoke(prompt)
     answer = strip_think_tags(response.content)

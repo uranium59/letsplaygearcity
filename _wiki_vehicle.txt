@@ -1,0 +1,834 @@
+# Vehicle Game Mechanics
+
+The Game Mechanics section of the manual details the internal formula used in the game's calculations. This section of the manual uses pseudo-code and may not be 100% the same as the code in the game. 
+
+The Game Mechanics part of the manual is mainly designed to be a reference for the frequently asked question, “Why do I get this rating when I do X, Y, Z?!” Usually, this answer involves many different variables, which this section of the manual demonstrates. 
+
+The game mechanics section of the manual shows how the sausage gets made. So you really may want to avoid this portion of the manual if you enjoy the game.
+
+## Variables
+
+This is a table of variables and their descriptions used in the formulas.
+
+### Sliders
+
+#### Vehicle Sliders
+
+| Variable | Description | | Variable | Description |
+| --- | --- | --- | --- | --- |
+| Slider_Interior_Style | Interior ⇒ Style Slider | | Slider_Interior_Innovation | Interior ⇒ Innovation Slider |
+| Slider_Interior_Luxury | Interior ⇒ Luxury Slider | | Slider_Interior_Comfort | Interior ⇒ Comfort Slider |
+| Slider_Interior_Safety | Interior ⇒ Safety Slider | | Slider_Interior_Technology | Interior ⇒ Technology Slider |
+| Slider_Materials_MaterialQuality | Materials ⇒ Material Quality Slider | | Slider_Materials_Interior | Materials ⇒ Interior Quality Slider |
+| Slider_Materials_Paint | Materials ⇒ Paint Quality Slider | | Slider_Materials_Techniques | Materials ⇒ Manufacturing Techniques Slider |
+| Slider_Design_Style | Design Focus ⇒ Style Focus Slider | | Slider_Design_Luxury | Design Focus ⇒ Luxury Focus Slider |
+| Slider_Design_Safety | Design Focus ⇒ Safety Focus Slider | | Slider_Design_Cargo | Design Focus ⇒ Cargo Focus Slider |
+| Slider_Design_Dependability | Design Focus ⇒ Dependability Slider | | Slider_Design_DesignPace | Design Focus ⇒ Development Pace Slider |
+| Slider_Demographics_Gender | Design Focus ⇒ Gender Target Dropdown | | Slider_Demographics_Wealth | Design Focus ⇒ Wealth Dropdown |
+| Slider_Demographics_Age | Design Focus ⇒ Age Dropdown | | Slider_Testing_Demographics | Testing ⇒ Market Demographics Testing Slider |
+| Slider_Testing_Performance | Testing ⇒ Performance Testing Slider | | Slider_Testing_FuelEconomy | Testing ⇒ Fuel Economy Testing Slider |
+| Slider_Testing_Comfort | Testing ⇒ Comfortability Testing Slider | | Slider_Testing_Utility | Testing ⇒ Utility Testing Slider |
+| Slider_Testing_Reliability | Testing ⇒ Reliability Testing Slider | | | |
+
+#### Chassis Sliders
+
+See Chassis Game Mechanics
+
+#### Engine Sliders
+
+See Engine Game Mechanics
+
+#### Gearbox Sliders
+
+See Gearbox Game Mechanics
+
+### Components
+
+#### Chassis
+
+See Chassis Game Mechanics
+
+#### Engine Sliders
+
+See Engine Game Mechanics
+
+#### Gearbox Sliders
+
+See Gearbox Game Mechanics
+
+### Demographic Targeting
+
+#### Gender
+
+| Selection | Bonuses | Penalties |
+| --- | --- | --- |
+| Male | Performance:+0.05Power:+0.05Driveability:+0.05 | Fuel Economy:-0.05Safety:-0.05Cargo:-0.05 |
+| Female | Fuel Economy:+0.05Safety:+0.05Cargo:+0.05 | Performance:-0.05Power:-0.05Driveability:-0.05 |
+| Neutral | Neutral | Neutral |
+
+#### Age
+
+| Selection | Bonuses | Penalties |
+| --- | --- | --- |
+| Less Than 25 | Performance:+0.05Fuel Economy:+0.05Dependability:+0.05 | Luxury:-0.05Safety:-0.05Quality:-0.05 |
+| 25-35 | Safety:+0.05Dependability:+0.05Cargo:+0.05 | Performance:-0.05Power:-0.05Driveability:-0.05 |
+| 35-55 | Performance:+0.05Power:+0.05Luxury:+0.05Quality:+0.05 | Fuel Economy:-0.05Dependability:-0.05Safety:-0.05Cargo:-0.05 |
+| Greater Than 55 | Safety:+0.05Luxury:+0.05Quality:+0.05Dependability:+0.05 | Performance:-0.05Power:-0.05Driveability:-0.05Fuel Economy:-0.05 |
+
+#### Wealth
+
+This demographic's “value” variable also affects several other ratings covered further down the page.
+
+| Selection | Adjustment | Value |
+| --- | --- | --- |
+| Ultra-Low | Performance:-0.0075Driveability:-0.0075Safety:-0.012Luxury:-0.015 | 0 |
+| Low | Performance:-0.005Driveability:-0.005Safety:-0.008Luxury:-0.01 | 1 |
+| Lower-Middle | Performance:-0.0025Driveability:-0.0025Safety:-0.004Luxury:-0.005 | 2 |
+| Middle | Performance:+0Driveability:+0Safety:+0Luxury:+0 | 3 |
+| Upper-Middle | Performance:+0.0025Driveability:+0.0025Safety:+0.004Luxury:+0.005 | 4 |
+| Upper | Performance:+0.005Driveability:+0.005Safety:+0.008Luxury:+0.01 | 5 |
+| Wealthy | Performance:+0.0075Driveability:+0.0075Safety:+0.012Luxury:+0.015 | 6 |
+| Ultra-Wealthy | Performance:+0.01Driveability:+0.01Safety:+0.016Luxury:+0.02 | 7 |
+
+### Global
+
+| Variable | Description | | Variable | Description |
+| --- | --- | --- | --- | --- |
+
+year
+designBodySkill
+Car_Type.Wealth_Index
+global_interestrate
+carPriceRate
+designRandomVal
+ex_0d99p_year50R
+ex_1d0035p_year99
+ex_1d005p_year99
+ex_1d02p_year99
+ex_1d03p_year99
+ex_1d04p_year99
+ex_1d05p_year99
+FactOverallVAL
+
+## Specs
+
+### Length
+
+Max_Z = Largest Z coordinate value of the vehicle body.
+Min_Z = Smallest Z coordinate value of the vehicle body. This value is a negative number.
+
+Length = ( Max_Z + Absolute Value of Min_Z ) / 2.5
+
+If (Length < Selected_Chassis_Length)
+ Length = (Selected_Chassis_Length / 7.51) + ( Max_Z + Absolute Value of Min_Z )/3.0
+
+######
+Secondary Calculations
+######
+
+if( Length > Selected_Chassis.Length*1.7 )
+{
+ AdjustValue = Length / (Selected_Chassis.Length*1.7)
+ Length = Selected_Chassis.Length*1.7
+ NeedToScale = true
+}
+
+### Width
+
+Max_X = Largest X coordinate value of the vehicle body.
+Min_X = Smallest X coordinate value of the vehicle body. This value is a negative number.
+
+Width = ( Max_X + Absolute Value of Min_X ) / 3.0
+
+if(Width < Selected_Chassis.Width)
+{
+ Old_Width = Width
+ Width = (Selected_Chassis.Width / 2.54) + ( Max_X + Absolute Value of Min_X )/15.5
+ Height_Scale = ((Width/Old_Width))/2.0
+}
+
+######
+Secondary Calculations
+See Length for possible variables
+######
+
+if(Width>Selected_Chassis.Width*1.2)
+{
+ if(Width / (Selected_Chassis.Width*1.2) > AdjustValue)
+ AdjustValue = Width / (Selected_Chassis.Width*1.2)
+
+ Width = Selected_Chassis.Width*1.2
+ NeedToScale = true
+}
+
+### Height
+
+Max_Y = Largest Y coordinate value of the vehicle body.
+Min_Y = Smallest Y coordinate value of the vehicle body. This value is a negative number.
+
+Height = ( Max_Y + Absolute Value of Min_Y ) / 2.1
+
+######
+See Width for this variable
+######
+
+if( Height_Scale > 1 ) 
+{
+ Height_Scale = ((Height_Scale - 1) / 2.5) + 1
+ Height = Height * Height_Scale
+}
+
+######
+Secondary Calculations
+See Length And Width for these variables
+######
+
+if( NeedToAdjust)
+ Height = Height / AdjustValue
+
+### Estimated Surface Area
+
+Used for fast calculations for Drag Coefficient. Game has a more accurate version of this, but we don't use it for faster processing.
+
+Surface_Area = ( (Width/2.5) * (Height/2.5) ) / 26
+
+### Drag Coefficient
+
+//CombinedAngles = Single value comprised of multiple angle and flow tests on the frontial surface of the vehicle body. 
+ 
+DragArea = 0.029 * CombinedAngles + 0.000513 * (CombinedAngles^2)
+ 
+Drag_Coefficient = 0.08 + (((Surface_Area/115.0)+(DragArea/115.0))/1.5)
+ 
+if(year < 1923 AND year != 1800)
+{
+ Drag_Coefficient = Drag_Coefficient + (40.0/(year-1800))
+}
+ 
+if(year > 1990)
+{
+ if(year < 2021)
+ Drag_Coefficient = Drag_Coefficient - ((Drag_Coefficient/9.75) * ((year-1990)/100.0))
+ else
+ Drag_Coefficient = Drag_Coefficient - ((Drag_Coefficient/9.75) * ((2020-1990)/100.0))
+}
+
+### Weight
+
+Weight is in KG
+
+Weight = Selected_Chassis.Weight + (Selected_Engine.Weight*0.4536) + (Selected_Gearbox.Weight*0.4536) +
+ Absolute Value Of((1.0+Slider_Materials_MaterialQuality*0.35 + Slider_Design_Safety*(1.3-(0.3 * ex_0d99p_year50R)) +
+ Slider_Design_Luxury*(0.5+(0.2 * ex_1d0035p_year99)) + Slider_Interior_Comfort*0.6 +
+ Slider_Interior_Luxury*0.7 + Slider_Interior_Safety*1.25 + Slider_Materials_Interior*0.35 - 
+ (Slider_Materials_Techniques*0.4 + Slider_Testing_FuelEconomy*0.4 + Slider_Testing_Performance*0.4)) *
+ (50*(Car_Type.Weight_Value+0.15)*fastpow(1.0135,(year-1899)/1.4))) +
+ (Length*1.525 + Width*1.525 + Height*1.525)*(Car_Type.Weight_Value+0.1)
+
+### Cargo Volume
+
+Values are in L
+
+Cargo_Volume = ((Length * Width * Height -(Selected_Engine.width * Selected_Engine.length))/1.25 +
+ (((Length * Width * Height -(Selected_Engine.width * Selected_Engine.length))/5.0) *
+ (Car_Type.Cargo_Value +(0.25 * Slider_Design_Cargo)+(0.1 * Slider_Testing_Utility)))) / 800.0
+
+### Fuel Mileage
+
+Values in MPG
+
+Fuel_WeightMod = (((Weight*2.205) * 4.076055) * 0.00134102209) +
+ ((0.7 * (Surface_Area*0.092903) * Drag_Coefficient * 21253.933) * 0.00134102209)
+ 
+ 
+if(Weight > 0 && ((((Weight) * 2.015955) * 0.00134102209) + 
+ (( 0.7 * (Surface_Area*0.092903) *Drag_Coefficient * 2571.353) * 0.00134102209)) > 0 )
+{
+ Fuel_Mileage = ((((Selected_Gearbox.LowGear_Ratio + 0.01) / 2.0) * 
+ ((Selected_Engine.Torque*1.05)/((Weight)))) * 
+ ((Selected_Engine.HP*1.05)/((((Weight) * 2.015955) * 0.00134102209) +
+ ((0.7 * (Surface_Area*0.092903) * Drag_Coefficient * 2571.353) * 0.00134102209))) )
+}
+ 
+ 
+Fuel_Mileage = Fuel_Mileage + (Selected_Engine.Torque / 
+ (Fuel_WeightMod*(3.0 + ((1.0-Selected_Gearbox.LowGear_Ratio)))))
+ 
+Fuel_Mileage = Fuel_Mileage * Selected_Engine.FuelMileage
+ 
+ 
+Fuel_Mileage = 1 + Fuel_Mileage + ((3* Selected_Gearbox.Number_Of_Gears/6.0) + 
+ (1.9*((Selected_Gearbox.FuelEconomy_Rating/100.0)) + 
+ (0.7*Slider_Testing_FuelEconomy) + (0.2*(1-Slider_Testing_Performance))))
+ 
+ 
+if(Fuel_Mileage > (Selected_Engine.FuelMileage * 1.5))
+ Fuel_Mileage = (Selected_Engine.FuelMileage * 1.5)
+else if(Fuel_Mileage < (Selected_Engine.FuelMileage * 0.4))
+ Fuel_Mileage = (Selected_Engine.FuelMileage * 0.4)
+
+### Top Speed
+
+Values are in mph.
+
+friction = 1
+ 
+if((Drag_Coefficient * 0.6461 * (Surface_Area * 0.1)) != 0)
+{
+ friction = ((Weight*0.14715)/(Drag_Coefficient*0.6461*(Surface_Area*0.1)))^3 / 27.0 +
+ ((Selected_Engine.HP*745.699872)/(Drag_Coefficient*0.6461*(Surface_Area*0.1)))^2 * 0.25
+}
+else
+{
+ friction = ((Weight*0.14715)/(1+Drag_Coefficient*0.6461*(Surface_Area*0.1)))^3 / 27.0 +
+ ((Selected_Engine.HP*745.699872)/(1+Drag_Coefficient*0.6461*(Surface_Area*0.1)))^2 * 0.25
+}
+ 
+sqFriction = friction^0.5
+ 
+Top_Speed = 1
+ 
+if((Drag_Coefficient * 1.2922 * (Surface_Area *0.1 )) != 0 && Selected_Engine.HP * 745.699872 != 0)
+{
+ if(((Selected_Engine.HP*745.699872)/(Drag_Coefficient*1.2922*(Surface_Area/10.0))-sqFriction) == 0)
+ {
+ sqFriction++
+ 
+ Top_Speed = ((Selected_Engine.HP*745.699872)/
+ (Drag_Coefficient*1.2922*(Surface_Area/10.0))+sqFriction)^(0.3333))+
+ (Selected_Engine.HP*745.699872)/(Drag_Coefficient*1.2922*(Surface_Area/10.0))-sqFriction)^0.3333*
+ ((Selected_Engine.HP*745.699872)/(Drag_Coefficient*1.2922*(Surface_Area/10.0))-sqFriction)/
+ ((Selected_Engine.HP*745.699872)/(Drag_Coefficient*1.2922*(Surface_Area/10.0))-sqFriction)
+ }
+ else
+ {
+ Top_Speed = ((Selected_Engine.HP*745.699872)/
+ (Drag_Coefficient*1.2922*(Surface_Area/10.0))+sqFriction)^0.3333+
+ ((Selected_Engine.HP*745.699872)/(Drag_Coefficient*1.2922*(Surface_Area/10.0))-sqFriction)^0.3333*
+ ((Selected_Engine.HP*745.699872)/(Drag_Coefficient*1.2922*(Surface_Area/10.0))-sqFriction)/
+ ((Selected_Engine.HP*745.699872)/(Drag_Coefficient*1.2922*(Surface_Area/10.0))-sqFriction)
+ }
+}
+else
+{
+ Top_Speed = ((Selected_Engine.HP*745.699872)/(1+Drag_Coefficient*1.2922*(Surface_Area*0.1))+sqFriction)^0.3333+
+ ((Selected_Engine.HP*745.699872)/(1+Drag_Coefficient*1.2922*(Surface_Area*0.1))-sqFriction)^0.3333 *
+ ((Selected_Engine.HP*745.699872)/(1+Drag_Coefficient*1.2922*(Surface_Area*0.1))-sqFriction)/
+ ((Selected_Engine.HP*745.699872)/(1+Drag_Coefficient*1.2922*(Surface_Area*0.1))-sqFriction)
+}
+ 
+limitedGears = 1
+ 
+if(Selected_Gearbox.Number_Of_Gears < 4)
+ limitedGears = Selected_Gearbox.Number_Of_Gears / 8.0
+ 
+ 
+Top_Speed = Top_Speed * (2.3 + (0.45*(limitedGears+(0.02*Selected_Gearbox.Number_Of_Gears)))+
+ (1.0*(Selected_Gearbox.HighGear_Ratio)))
+ 
+HP_MaxSpeed = 1
+ 
+Speed_Weight_Multiplier = 0
+ 
+if(Weight/Selected_Engine.HP <= 15)
+ Speed_Weight_Multiplier = 0
+else if(Weight/Selected_Engine.HP <= 38 )
+{
+ Speed_Weight_Multiplier = ((Weight/Selected_Engine.HP)-15) / 15.0 - 
+ (((1.0-Selected_Gearbox.LowGear_Ratio)+(1.0-Selected_Gearbox.HighGear_Ratio))/2.0)
+}
+else
+{
+ Speed_Weight_Multiplier = 1.5 - (((1.0-Selected_Gearbox.LowGear_Ratio)+
+ (1.0-Selected_Gearbox.HighGear_Ratio))/1.8)
+}
+ 
+ 
+if(Speed_Weight_Multiplier < 0)
+ Speed_Weight_Multiplier = 0
+ 
+HP_MaxSpeed = ((Selected_Engine.HP*745.7) / 
+ (Drag_Coefficient * 1.25 * (Surface_Area*0.092903)))^(1.0/3.0) * (3.6-Speed_Weight_Multiplier)
+ 
+if(Top_Speed > HP_MaxSpeed)
+{
+ if(Weight/Selected_Engine.HP > 37)
+ {
+ Top_Speed = HP_MaxSpeed + 1 + 
+ (10 * ((1.0-Selected_Gearbox.LowGear_Ratio)+(0.2*(1.0-Selected_Gearbox.HighGear_Ratio))))
+ }
+ else if(Selected_Engine.HP < 15)
+ {
+ Top_Speed = HP_MaxSpeed + (Selected_Engine.HP *0.4) + 
+ (9 * ((0.02*Selected_Gearbox.Number_Of_Gears)+(1.0*(Selected_Gearbox.HighGear_Ratio))))
+ }
+ else
+ {
+ Top_Speed = HP_MaxSpeed + 6 + 
+ (18 * ((0.02*Selected_Gearbox.Number_Of_Gears)+(1.0*(Selected_Gearbox.HighGear_Ratio))))
+ }
+}
+else if(Top_Speed < HP_MaxSpeed + 6 +
+ (9 * ((0.02*Selected_Gearbox.Number_Of_Gears)+(1.0*(Selected_Gearbox.HighGear_Ratio)))))
+{
+ if(Weight/Selected_Engine.HP > 37)
+ {
+ Top_Speed = Top_Speed + 1 + (10 * ((1.0-Selected_Gearbox.LowGear_Ratio)+
+ (0.2*(1.0-Selected_Gearbox.HighGear_Ratio))))
+ }
+ else
+ {
+ Top_Speed = Top_Speed + 6 + (9 * ((0.02*Selected_Gearbox.Number_Of_Gears)+
+ (1.0*(Selected_Gearbox.HighGear_Ratio))))
+ }
+}
+
+### Acceleration
+
+if((Selected_Engine.HP*745.699872) Does Not Equal 0 AND 
+ ((Selected_Engine.HP*745.699872)^0.5*(Selected_Engine.Torque * 1.35581795)^0.5) Does Not Equal 0)
+{
+ Acceleration_MPH = 6 * Drag_Coefficient + 0.35 * 
+ ((( Weight * 2.2046) * 719.44114176) / (Selected_Engine.HP*745.699872)) +
+ 0.4 * ((( Weight * 2.2046)^0.5 * 719.44114176)/((Selected_Engine.HP*745.699872)^0.5 *
+ (Selected_Engine.Torque * 1.35581795)^0.5)) * ((Selected_Gearbox.LowGear_Ratio) + 1.5 - 
+ (Selected_Gearbox.Number_Of_Gears/10.0)+(0.2*(1.1-(Selected_Gearbox.StaticPerformanceRate/100.0))))
+ 
+ Acceleration_KPH = 6*Drag_Coefficient + 0.35 * ((( Weight * 2.2046) * 771.60617284) /
+ (Selected_Engine.HP*745.699872)) + 0.4 * ((( Weight * 2.2046)^0.5 * 771.60617284) / 
+ ((Selected_Engine.HP*745.699872)^0.5 * (Selected_Engine.Torque * 1.35581795)^0.5)) *
+ ((Selected_Gearbox.LowGear_Ratio) + 1.5 - (Selected_Gearbox.Number_Of_Gears/10.0) +
+ (0.2*(1.1-(Selected_Gearbox.StaticPerformanceRate/100.0))))
+}
+ 
+if(Acceleration_MPH < 0.5)
+{
+ Acceleration_MPH = 0.5
+ Acceleration_KPH = 0.5
+}
+
+### Braking
+
+Braking_60_to_0 = (((100 * ex_0d99p_year99) * (1.01-Slider_Design_Safety)) + 130.16667 +
+ ((Weight/100.0)*(1.0-Drag_Coefficient))+ (30*(1-Selected_Chassis.FrSus_Braking)) + 
+ (30*(1-Selected_Chassis.RrSus_Braking)) + (50*(1.0-Selected_Chassis.Slider_SUS_Braking)) + 
+ (50-(Selected_Chassis.StaticPerform/2.0))) * ex_0d995p_year99
+
+### Towing
+
+Tow_Weight = Selected_Engine.Torque * (1.25 + (4 * ((1-Selected_Gearbox.LowGear_Ratio) +
+ (0.5*(1-Selected_Gearbox.HighGear_Ratio))))) * 7.5 +
+ (100.0 *(static_cast<Ogre::Real>(Selected_Chassis.Original_Strength_Rating)/100.0))
+ 
+Tow_Weight = Tow_Weight * 0.454 - Weight
+ 
+if(Tow_Weight < 10)
+ Tow_Weight = 10
+
+### Roadhold
+
+Roadhoad_LateralG = 0.4 +(0.5*(42475269.9 - (Length * Width * Height))/42475269.9) +
+ (0.5*(Selected_Chassis.Original_Performance_Rating/100.0)) +
+ (0.2 * ((1300.0-Weight)/1300.0))
+
+## Ratings
+
+### Design Requirements
+
+Design_Requirements = ( 5 * Slider_Design_Cargo + 15 * Slider_Design_Dependability + 
+ 6 * Slider_Design_Luxury + 10 * Slider_Design_Safety + 10 * Slider_Design_Style + 
+ 6 * Slider_Interior_Innovation + 10 * Slider_Interior_Safety + 4 * Slider_Interior_Comfort +
+ 4* Slider_Testing_Comfort + 4* Slider_Testing_Demographics + 4* Slider_Testing_FuelEconomy +
+ 4* Slider_Testing_Performance + 4* Slider_Testing_Reliability + 4* Slider_Testing_Utility) +
+ Slider_Materials_Techniques + Slider_Materials_Interior + Slider_Materials_MaterialQuality +
+ Slider_Materials_Interior + Slider_Materials_Paint + (5*(1-(RnD_Skills/100.0)))
+ 
+
+### Manufacturing Requirements
+
+Manufacturing_Requirements = ((Selected_Chassis.Manufacturing_Requirements + 
+ Selected_Engine.Manufacturing_Requirements + Selected_Gearbox.Manufacturing_Requirements)/4.8) +
+ ( 3 * Slider_Interior_Comfort + 3 * Slider_Interior_Luxury + 3 * Slider_Interior_Safety +
+ 3 * Slider_Interior_Style + 3 * Slider_Interior_Technology+ 7 * Slider_Materials_Techniques + 
+ 4 * Slider_Materials_Interior + 4 * Slider_Materials_MaterialQuality + 4 * Slider_Materials_Paint) +
+ (5*(1-(RnD_Skills/100.0))) + (Slider_Design_Cargo + Slider_Design_Dependability + 
+ Slider_Design_Luxury + Slider_Design_Safety + Slider_Design_Style + Slider_Testing_Comfort + 
+ Slider_Testing_Demographics + Slider_Testing_FuelEconomy + Slider_Testing_Performance + 
+ Slider_Testing_Reliability + Slider_Testing_Utility)/2.0 + 
+ (10*(Slider_Demographics_Wealth/10.0)*Slider_Testing_Demographics)
+ 
+if(Manufacturing_Requirements > 100)
+ Manufacturing_Requirements = 100
+
+### Performance Rating
+
+Power_To_Weight_Ratio = 1;
+ 
+if(Weight != 0)
+ Power_To_Weight_Ratio = (Selected_Engine.HP / ((Weight*2.205)/2000.0))
+else
+ Power_To_Weight_Ratio = (Selected_Engine.HP / ((1+Weight*2.205)/2000.0))
+ 
+Power_To_Weight_Ratio = -.024 + .003 * Power_To_Weight_Ratio
+ 
+if(Power_To_Weight_Ratio>1)
+ Power_To_Weight_Ratio = 1
+else if(Power_To_Weight_Ratio<0.01)
+ Power_To_Weight_Ratio=0.01
+ 
+ 
+ 
+Temp_Acceleration = Acceleration_KPH
+Temp_Brake = Braking_60_to_0
+ 
+if(Temp_Brake <= 0)
+ Temp_Brake = 1
+ 
+ 
+if(Temp_Acceleration = 0)
+{
+ Temp_Acceleration = 60
+ Temp_Brake = 10000
+}
+else if (Temp_Acceleration > 60)
+{
+ Temp_Acceleration = 60
+}
+ 
+Rating_Performance = 10.0 * (Selected_Chassis.Performance_Rating/100.0) + 
+ 45.0 * Power_To_Weight_Ratio + (15* Slider_Testing_Performance) + 
+ 5 * Roadhoad_LateralG + (5 * (Top_Speed/321.0)) + 
+ (5* (Selected_Gearbox.Performance_Rating/100.0)) + (5 * (50.0/Temp_Brake)) +
+ (10 * ((60.0-Temp_Acceleration)/60.0)) +(75*Demo_Performance*Slider_Testing_Demographics)
+ 
+if(Rating_Performance > 100)
+ Rating_Performance = 100
+else if(Rating_Performance < 0 )
+ Rating_Performance = 1
+
+### Driveability
+
+Rating_Drivability = (27 * (Selected_Chassis.Performance_Rating/100.0)) + (6 * Selected_Chassis.FrSus_Steering) + 
+ (6 * Selected_Chassis.RrSus_Steering) - (5 * (Selected_Gearbox.Comfort_Rating)) + 
+ (41*(Roadhoad_LateralG/1.4)) + (15*Selected_Chassis.SubComponent_Drive_ridePerformance) +
+ (12 * Slider_Testing_Performance) - (2 * Slider_Testing_Comfort) + (75*demoDrive*Slider_Testing_Demographics)
+ 
+if(Rating_Drivability > 100)
+{
+ Rating_Drivability = 100;
+}
+else if(Rating_Drivability < 0 )
+{
+ Rating_Drivability = 1;
+}
+
+### Safety Rating
+
+//See Performance Rating for value of Temp_Brake
+ 
+Rating_Safety = (10 * Slider_Design_Safety) + (10 * Slider_Interior_Safety) + 
+ (15 * Selected_Chassis.SubComponent_Frame_Safety) + (2 * Slider_Interior_Technology) +
+ (2*Slider_Materials_Techniques) + (2*Slider_Materials_Interior) + 
+ (2 * Slider_Materials_MaterialQuality) + (2 * Slider_Testing_Reliability) +
+ (20 * (Weight/4000.0)) + (15*(designSafetySkill/100.0)) +
+ (5 * (50.0/Temp_Brake) ) + (15 * (Selected_Chassis.Strength_Rating/100.0)) +
+ (75*Demographics_Safety*Slider_Testing_Demographics)
+ 
+if(Rating_Safety > 100)
+ Rating_Safety = 100
+else if(Rating_Safety < 0 )
+ Rating_Safety = 1
+
+### Fuel Ratings
+
+Rating_Fuel_Economy = Fuel_Mileage*2
+ 
+if(Rating_Fuel_Economy > 100)
+ Rating_Fuel_Economy = 100
+else if (Rating_Fuel_Economy < 1)
+ Rating_Fuel_Economy = 1
+
+### Power Rating
+
+Rating_Power = 20 * (Tow_Weight/25000.0)
+ 
+if(Rating_Power>50)
+ Rating_Power=50
+ 
+Rating_Power = Rating_Power + (70 * (Selected_Engine.Torque/600.0)) +
+ (10 * (Selected_Gearbox.Power_Rating/100.0))+
+ (20*Demographics_Power*Slider_Testing_Demographics)
+ 
+if(Rating_Power>100)
+ Rating_Power=100
+else if(Rating_Power < 0)
+ Rating_Power=0
+
+### Cargo Rating
+
+Rating_Cargo = 85 * (Cargo_Volume / 3200.0)
+if(Rating_Cargo > 85)
+ Rating_Cargo = 85
+ 
+Rating_Cargo = Rating_Cargo + (10 * Slider_Design_Cargo) + 
+ (5 * Slider_Testing_Utility)+(30*Demographics_Cargo*Slider_Testing_Demographics)
+ 
+if(Rating_Cargo>100)
+ Rating_Cargo=100
+else if(Rating_Cargo < 0)
+ Rating_Cargo=0
+
+### Luxury Rating
+
+Rating_Luxury = (7 * Slider_Design_Luxury) + (7 * Slider_Design_Style) +
+ (4 * Slider_Interior_Comfort) + (4*Slider_Interior_Innovation) + 
+ (8 * Slider_Interior_Luxury) + (4*Slider_Interior_Style) + 
+ (3*Slider_Interior_Technology) + (5*Slider_Materials_Interior) + 
+ (5* Slider_Testing_Comfort) + (3*Slider_Testing_Utility) + 
+ (15 * (Selected_Chassis.Comfort_Rating/100.0)) + 
+ (8 * (Selected_Gearbox.Comfort_Rating/100.0)) + 
+ (10 * (Selected_Engine.Smoothness_Rating/100.0)) + 
+ (5 * (Rating_Cargo/100.0)) + (5 * Selected_Gearbox.Subcomponents_Gearbox_Smoothness ) + 
+ (7*(designLuxurySkill/100.0))+(75*Demographics_Luxury*Slider_Testing_Demographics)
+ 
+ 
+if(Rating_Luxury>100)
+ Rating_Luxury=100
+else if(Rating_Luxury < 0)
+ Rating_Luxury=0
+
+### Quality Rating
+
+Rating_Quality = (10*Slider_Design_Dependability) + (5*Slider_Design_Luxury) + 
+ (5*Slider_Design_Style) + (5*Slider_Materials_Techniques) + (15*Slider_Materials_Interior) +
+ (10*Slider_Materials_Paint) + (10*Slider_Testing_Reliability) + (5*Slider_Testing_Utility) +
+ (5* (Selected_Gearbox.Reliability_Rating/100.0)) + 
+ (5* (Selected_Chassis.Durability_Rating/100.0)) + 
+ (5* (Selected_Engine.Reliability_Rating/100.0)) + 
+ (20 * (designBodySkill/100.0)) +
+ (75*(Slider_Demographics_Wealth/15.0)*Slider_Testing_Demographics)
+ 
+if(Rating_Quality>100)
+ Rating_Quality=100
+else if(Rating_Quality < 0)
+ Rating_Quality=0
+ 
+ 
+if(Selected_Gearbox.Max_Torque_Support < Selected_Engine.Torque)
+{
+ Rating_Quality = (Rating_Quality*0.7) + 
+ ( (Rating_Quality*0.25) *(Selected_Gearbox.Max_Torque_Support / Selected_Engine.Torque))
+ 
+}
+
+### Dependability Rating
+
+Rating_Dependability = (20*Slider_Design_Dependability) + (5*Slider_Materials_MaterialQuality) +
+ (15*Slider_Testing_Reliability) + (5*Slider_Testing_Utility) + 
+ (15*(Selected_Chassis.Durability_Rating/100.0)) + (5*(Selected_Chassis.Strength_Rating/100.0)) +
+ (10*(Selected_Gearbox.Reliability_Rating/100.0)) + (20*(Selected_Engine.Reliability_Rating/100.0)) +
+ (5*(Selected_Engine.Smoothness_Rating/100.0))+(75*Demographics_Dependability*Slider_Testing_Demographics)
+ 
+if(Rating_Dependability>100)
+ Rating_Dependability=100
+else if(Rating_Dependability < 0)
+ Rating_Dependability=0
+ 
+ 
+if(Selected_Gearbox.Max_Torque_Support < Selected_Engine.Torque)
+{
+ Rating_Dependability = Rating_Dependability * (Selected_Gearbox.Max_Torque_Support / Selected_Engine.Torque)
+ Rating_Dependability = Rating_Dependability * 0.95
+}
+
+### Overall Rating
+
+Rating_Overall = (Rating_Performance + Rating_Drivability + Rating_Luxury + Rating_Safety +
+ Rating_Fuel_Economy + Rating_Power + Rating_Cargo + Rating_Quality +
+ Rating_Dependability + Selected_Chassis.Overall + Selected_Engine.Overall + 
+ Selected_Gearbox.OverallRate + designBodySkill) / 13.0 
+ 
+Rating_Overall = Rating_Overall + (5*PreResearchcarAmountEffect)
+ 
+if(Rating_Overall > 100)
+ Rating_Overall = 100;
+
+### Vehicle Type Specific Rating
+
+See the Vehicle Type Importance Ratings page for vehicle type importance ratings.
+
+Rating_CarType = (Rating_Cargo*Car_Type.Rating_Cargo * 3) +
+ (Rating_Dependability * Car_Type.Rating_Dependability * 3) +
+ (Rating_Drivability * Car_Type.Rating_Drivability * 3) +
+ (Rating_Fuel_Economy * Car_Type.Rating_Fuel * 3) +
+ (Rating_Luxury * Car_Type.Rating_Luxury * 3) +
+ (Rating_Performance * Car_Type.Rating_Performance * 3) +
+ (Rating_Power * Car_Type.Rating_Power* 3) +
+ (Rating_Safety * Car_Type.Rating_Safety* 3)
+ 
+ 
+maxRating_CarType = (100*Car_Type.Rating_Cargo * 3) +
+ (100 * Car_Type.Rating_Dependability * 3) +
+ (100 * Car_Type.Rating_Drivability * 3) +
+ (100 * Car_Type.Rating_Fuel * 3) +
+ (100 * Car_Type.Rating_Luxury * 3) +
+ (100 * Car_Type.Rating_Performance * 3) +
+ (100 * Car_Type.Rating_Power * 3) +
+ (100 * Car_Type.Rating_Safety * 3)
+ 
+if(maxRating_CarType < 1)
+ maxRating_CarType = 1;
+ 
+Rating_CarType = 100 * (Rating_CarType / maxRating_CarType)
+
+### Vehicle Image
+
+VehicleImg = (Rating_CarType/75.0) * (((IMAGE_GLOBAL_GENERAL*2) + IMAGE_QUALITY +
+ IMAGE_WORK + (IMAGE_RACING/2.0))/4.5)
+ 
+//If making a trim
+if(BaseModelImg>0)
+{
+ VehicleImg = BaseModelImg + ((Rating_CarType-BaseModelImg)/20.0) 
+ 
+ BaseModelImg =0;
+}
+else //If Making New Generation
+{
+ tmpVImage = Get_Most_Recent_Vehicle_Image_By_Name()
+ 
+ if(tmpVImage > 0)
+ VehicleImg= tmpVImage + ((Rating_CarType-tmpVImage)/20.0)
+}
+ 
+if(VehicleImg>100)
+ VehicleImg = 100
+else if(VehicleImg< 0)
+ VehicleImg = 0
+
+## Miscellaneous
+
+### Unit Costs
+
+Unit_Costs = ((((200*ex_1d02p_year99*((((Slider_Interior_Comfort^2 )+
+ (Slider_Interior_Luxury^2) + (Slider_Interior_Safety^2) + (Slider_Interior_Technology^2) +
+ (((Slider_Interior_Innovation^2) + (Slider_Interior_Style^2))/2.5))/3.5) +
+ ((Slider_Design_Cargo^2 + Slider_Design_Dependability^2 + 
+ Slider_Design_Safety^2 + Slider_Design_Style^2 +Slider_Design_Luxury^2)/4.0)+
+ (( (Slider_Testing_Demographics^2 )+ (Slider_Testing_Performance^2 ) + 
+ (Slider_Testing_FuelEconomy^2) + (Slider_Testing_Comfort^2) + (Slider_Testing_Utility^2)+
+ (Slider_Testing_Reliability^2))/7.0) + (((Slider_Materials_MaterialQuality^2 ) +
+ (Slider_Materials_Techniques^2)+ (Slider_Materials_Interior^2) + 
+ (Slider_Materials_Paint^2))/1.5))) * (Car_Type.Wealth_Index/3.0))*
+ (global_interestrate/2.1))*carPriceRate) * designRandomVal +
+ (130*ex_1d02p_year99*(Slider_Demographics_Wealth/5.0)) + 
+ (150*ex_1d02p_year99*(Slider_Demographics_Wealth/10.0)*Slider_Testing_Demographics)
+ 
+ 
+hyperSliders = ((Slider_Interior_Style + Slider_Interior_Innovation + Slider_Interior_Luxury +
+ Slider_Interior_Comfort + Slider_Interior_Safety + Slider_Interior_Technology) +
+ ( Slider_Materials_MaterialQuality + Slider_Materials_Interior + 
+ Slider_Materials_Paint + Slider_Materials_Techniques) + ( Slider_Design_Style + 
+ Slider_Design_Luxury + Slider_Design_Safety + Slider_Design_Cargo + 
+ Slider_Design_Dependability) + ( Slider_Testing_Demographics + 
+ Slider_Testing_Performance + Slider_Testing_FuelEconomy + 
+ Slider_Testing_Comfort + Slider_Testing_Utility + Slider_Testing_Reliability))/21.0
+ 
+hyperCosts = 450 * ex_1d04p_year99 * (hyperSliders^4)
+ 
+ 
+Unit_Costs = Selected_Chassis.Unit_Costs + Selected_Engine.Unit_Costs + Selected_Gearbox.Unit_Costs +
+ Unit_Costs + hyperCosts - ((Unit_Costs/10) * (designBodySkill/100))
+ 
+if( Game Difficult is set to Easy )
+ Unit_Costs = Unit_Costs * 0.9
+else if( Game Difficult is set to Hard or Nightmare )
+ Unit_Costs = Unit_Costs * 1.1
+ 
+ 
+
+### Design Costs
+
+Design_Costs = (hyperCosts * (400*ex_1d03p_year99)) + (Selected_Chassis.Unit_Costs*400 * ex_1d03p_year99 + 
+ Selected_Engine.Unit_Costs*400 * ex_1d03p_year99+Selected_Gearbox.Unit_Costs * 400*ex_1d03p_year99 + 
+ 20000*ex_1d05p_year99 * ((Slider_Design_Cargo^2) + (Slider_Design_Dependability^2) +
+ (Slider_Design_Luxury^2) + (Slider_Design_Safety^2) + (Slider_Design_Style^2 ) +
+ (Slider_Interior_Innovation^2 ) + (Slider_Interior_Safety^2 ) + (Slider_Interior_Style^2) +
+ (Slider_Testing_Comfort^2 *2 ) + (Slider_Testing_Demographics^2 * 2 )+ (Slider_Testing_FuelEconomy^2 * 2) +
+ (Slider_Testing_Performance^2 * 2 )+ (Slider_Testing_Reliability^2 * 2) + (Slider_Testing_Utility^2 * 2))) +
+ (40000*ex_1d03p_year99*(Slider_Demographics_Wealth/10.0) * Slider_Testing_Demographics)
+
+ 
+If creating a New Trim or New Generation, If this design's Design Requirements Rating is 
+higher than the Base Model's Design Requirements, then you lose your discounts.
+Otherwise, only a fraction of the design costs at this stage is charged. 
+The fractions break down like this: 15% for base, 5% for a gearbox change, 
+5% for an engine change, 75% for chassis change.
+
+Design_Costs = (Design_Costs/5)+((Design_Costs/1.25)*(Slider_Design_DesignPace^2*4.5))
+
+if( Game Difficult is set to Easy )
+ Design_Costs = Design_Costs * 0.9
+else if( Game Difficult is set to Hard or Nightmare )
+ Design_Costs = Design_Costs * 1.1
+
+### Finish Time
+
+Finish_Time = ((0.7*(Slider_Interior_Innovation+Slider_Interior_Style+Slider_Interior_Safety)) +
+ (0.9*(Slider_Design_Cargo+(Slider_Design_Dependability*2) + Slider_Design_Cargo +
+ Slider_Design_Luxury + Slider_Design_Safety + Slider_Design_Style)) +
+ (1.5* (Slider_Testing_Comfort + Slider_Testing_Demographics +
+ Slider_Testing_FuelEconomy + Slider_Testing_Performance + Slider_Testing_Reliability +
+ Slider_Testing_Utility))) + 2*ex_1d005p_year99-
+ (3*ex_1d005p_year99*(RnD_Skills/100.0))-
+ (2*(FactOverallVAL/100.0)) + (1.25*ex_1d0035p_year99*hyperSliders)
+
+Finish_Time = Finish_Time + ((year-1870)/30)
+
+ 
+
+If creating a New Trim or New Generation, If this design's Design Requirements Rating is 
+higher than the Base Model's Design Requirements, then you lose all time discounts.
+Otherwise, only a fraction of design time is charged. 
+The fractions break down like this: 15% for base, 5% for a gearbox change, 
+5% for an engine change, 75% for chassis change.
+
+if(Year < 2021)
+{
+ if(( Slider_Design_DesignPace + 0.05) > 0)
+ additionalTime = ( ((year-1840)/15.0 ) *((0.5/( Slider_Design_DesignPace+0.05) ) -0.45) )
+ else
+ additionalTime = ( ((year-1840)/15.0 ) * 9.55 )
+}
+else
+{
+ if(( Slider_Design_DesignPace+0.05) > 0)
+ additionalTime = ( ((2020-1840)/15.0 ) *((0.5/( Slider_Design_DesignPace+0.05) ) -0.45) )
+ else
+ additionalTime = ( ((2020-1840)/15.0 ) * 9.55 )
+}
+
+if( Creating a trim and base model is completed )
+{
+ if(Slider_Design_DesignPace < 0.5)
+ Finish_Time = Finish_Time + additionalTime
+ else if(additionalTime > 0)
+ {
+ turnsOff = (Slider_Design_DesignPace - 0.5)/0.2
+ Finish_Time = Finish_Time + (additionalTime - TurnsOff)
+ }
+}
+
+if(Finish_Time < 1)
+ Finish_Time = 1
+
+### Employees Required
+
+if(year < 2021)
+ Employees_Required = Design_Requirements * (0.07833*(year-1899)+0.295)
+else
+ Employees_Required = Design_Requirements * (0.07833*(121)+0.295)
+ 
+ 
+ 
+Employees_Required = Employees_Required/5 + ((Employees_Required/1.2)*Slider_Design_DesignPace) + 3

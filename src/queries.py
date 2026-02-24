@@ -30,21 +30,60 @@ SELECT
     c.Spec_TopSpeed, c.Spec_Fuel,
     c.Spec_AccellerationSix, c.Spec_AccellerationHund,
     c.Rating_Performance, c.Rating_Drivability, c.Rating_Luxury, c.Rating_Safety,
+    c.Rating_Fuel, c.Rating_Power, c.Rating_Cargo,
+    c.Rating_Quality, c.Rating_Dependability, c.Rating_Overall,
+    c.DemoGender, c.DemoAge, c.DemoIncome,
+    -- CarInfo vehicle sliders (20)
+    c.Scroll_InteriorStyle, c.Scroll_InteriorInno, c.Scroll_InteriorLux,
+    c.Scroll_InteriorComf, c.Scroll_InteriorSafe, c.Scroll_InteriorTech,
+    c.Scroll_MatMatQual, c.Scroll_MatMatInterQual, c.Scroll_MatPaintQual, c.Scroll_MatManuTech,
+    c.Scroll_DesignStyle, c.Scroll_DesignLux, c.Scroll_DesignSafety,
+    c.Scroll_DesignCargo, c.Scroll_DesignDepend,
+    c.Scroll_TestDemo, c.Scroll_TestPerform, c.Scroll_TestFuel,
+    c.Scroll_TestComf, c.Scroll_TestUtil, c.Scroll_TestReli,
+    c.SlidersDesignPace AS car_design_pace,
+    -- EngineInfo base fields
     e.bore, e.stroke, e.CylinderNumberForCalculations AS cylinders,
     e.hp AS engine_hp, e.torque AS engine_torque, e.rpm AS engine_rpm,
     e.weight AS engine_weight, e.size_cc, e.fuelmilage,
     e.yearbuilt AS engine_year, e.ModYear AS engine_mod_year, e.designcost AS engine_designcost,
+    e.Name AS engine_name, e.Layout AS engine_layout,
     e.StaticenginePower, e.StaticengineFuelEco, e.StaticengineReliability, e.StaticRating_Smooth,
     e.enginePower, e.engineFuelEco, e.engineReliability, e.Rating_Smooth,
+    -- EngineInfo sliders (15)
+    e.slider_displace, e.slider_length, e.slider_width, e.slider_weight,
+    e.slider_rpm, e.slider_torq, e.slider_eco,
+    e.slider_materials, e.slider_techniques, e.slider_tech, e.slider_compoenents,
+    e.slider_designperformance, e.slider_designfueleco, e.slider_designdependability,
+    e.DesignPace AS engine_design_pace,
+    -- ChassisInfo base fields
+    ch.Name AS chassis_name,
     ch.ChassisWeightKG, ch.ChassisLengthCM, ch.ChassisWidthCM,
     ch.YearBuilt AS chassis_year, ch.ModYear AS chassis_mod_year, ch.Design_Cost AS chassis_designcost,
     ch.StaticOverallStrength, ch.StaticOverallComfort, ch.StaticOverallPerformance, ch.StaticOverallDependabilty,
     ch.Overall_Strength, ch.Overall_Comfort, ch.Overall_Performance, ch.Overall_Dependabilty,
+    -- ChassisInfo sliders (19)
+    ch.FD_Length, ch.FD_Width, ch.FD_Height, ch.FD_Weight, ch.FD_ENG_Width, ch.FD_ENG_Length,
+    ch.SUS_Stability, ch.SUS_Comfort, ch.SUS_Performance, ch.SUS_Braking, ch.SUS_Durability,
+    ch.DE_Performance AS ch_DE_Performance, ch.DE_Control, ch.DE_Str, ch.DE_Depend,
+    ch.TECH_Materials AS ch_TECH_Materials, ch.TECH_Compoenents AS ch_TECH_Compoenents,
+    ch.TECH_Techniques AS ch_TECH_Techniques, ch.TECH_Tech AS ch_TECH_Tech,
+    ch.DesignPace AS chassis_design_pace,
+    -- GearboxInfo base fields
+    g.Name AS gearbox_name,
     g.Gears, g.GearboxType, g.LoRatio, g.HiRatio, g.MaxTorqueInput, g.Weight AS gearbox_weight,
     g.YearBuilt AS gearbox_year, g.ModYear AS gearbox_mod_year, g.Design_Cost AS gearbox_designcost,
+    g.Reverse, g.Overdrive, g.Limited, g.Transaxle,
     g.StaticPowerRating, g.StaticFuelRating, g.StaticPerformanceRating,
     g.StaticReliabiltyRating, g.StaticComfortRating,
-    g.PowerRating, g.FuelRating, g.PerformanceRating, g.ReliabiltyRating, g.ComfortRating
+    g.PowerRating, g.FuelRating, g.PerformanceRating, g.ReliabiltyRating, g.ComfortRating,
+    -- GearboxInfo sliders (9)
+    g.de_performance AS g_de_performance, g.de_fuel, g.de_depend, g.de_comfort,
+    g.Tech_Material, g.Tech_Parts, g.Tech_Techniques AS g_Tech_Techniques, g.Tech_Tech AS g_Tech_Tech,
+    g.DesignPace AS gearbox_design_pace,
+    -- GearboxInfo sub-component properties
+    g.GB_Weight, g.GB_Complexity, g.GB_Smoothness, g.GB_Comfort AS GB_Comfort_Sub,
+    g.GB_Fuel, g.GB_Performance, g.GB_Costs, g.GB_DesignCosts
 FROM CarInfo c
 JOIN EngineInfo e ON c.Engine_ID = e.Engine_ID
 JOIN ChassisInfo ch ON c.Chassis_ID = ch.Chassis_ID

@@ -231,11 +231,67 @@ DESIGN_ADVISOR_PROMPT = """\
 You are a GearCity vehicle design advisor with deep knowledge of game mechanics.
 Use the Python-calculated data below AND your knowledge of design formulas to give precise, actionable advice.
 
-## Key Design Formulas (reference)
-- Displacement: CC = 0.7854 * (bore_cm)^2 * stroke_cm * cylinders
-- HP = (torque * rpm) / 5252
+## Design Slider System
+GearCity uses slider-based design (0.0–1.0 range) for all components.
+All slider costs scale with slider² — doubling a slider roughly quadruples its cost contribution.
+A "hyper-slider penalty" applies when the average of all sliders is high (avg⁴ × constant).
+
+### Engine Sliders (15)
+- **Layout**: Displacement, Length, Width, Weight (physical dimensions → size/weight)
+- **Performance**: RPM, Torque, Fuel Economy (core tradeoff: Performance ↔ FuelEco)
+- **Design Focus**: Performance, FuelEco, Dependability (quality emphasis, squared cost)
+- **Technology**: Materials, Components, Techniques, Tech (broad cross-cutting benefits)
+- **Design Pace**: Development speed (higher = faster but more engineers)
+
+### Chassis Sliders (19)
+- **Frame Dimensions**: Length, Width, Height, Weight, EngWidth, EngLength
+- **Suspension**: Stability, Comfort, Performance, Braking, Durability
+- **Design Emphasis**: Performance, Control, Strength, Dependability
+- **Technology**: Materials, Components, Techniques, Tech
+
+### Gearbox Sliders (9)
+- **Design**: Performance, Fuel, Dependability, Comfort
+- **Technology**: Material, Parts, Techniques, Tech
+- **Design Pace**: Development speed
+
+### Vehicle Sliders (20)
+- **Interior**: Style, Innovation, Luxury, Comfort, Safety, Tech
+- **Materials**: MatQual, InteriorQual(15× quality!), PaintQual, ManuTech
+- **Design**: Style, Luxury, Safety, Cargo, Dependability(20× depend!)
+- **Testing**: Demo, Performance, Fuel, Comfort, Utility, Reliability
+
+### Key Rules
+- Performance ↔ Fuel Economy: inversely related across all components
+- Technology sliders give broad benefits at moderate cost — best cost-effectiveness
+- TECH_Techniques (chassis) reduces design requirements — always efficient
+- Interior Quality (Scroll_MatMatInterQual) has 15× weight on Quality rating
+- Design Dependability (Scroll_DesignDepend) has 20× weight on Dependability rating
+- Torque input must exceed engine torque (gearbox) or quality/reliability penalty applies
+
+### Extreme Value Warnings (IMPORTANT)
+- Slider costs scale as slider² — above ~0.6, cost increase outpaces rating gain
+- Hyper-slider penalty: avg(all sliders)⁴ × 450~500 × 1.04^year on unit cost
+  - Safe avg: ≤ 0.5 | Risky: 0.6~0.7 | Dangerous: ≥ 0.75
+- Many sliders have NEGATIVE cross-effects at high values:
+  - Performance sliders ↑ hurt fuel/reliability
+  - Comfort sliders ↑ hurt performance/reliability
+  - TECH_Tech ↑ hurts durability (chassis) and reliability (gearbox)
+- Very LOW sliders can also be costly: lightweight/compact designs use (1-slider)² pricing
+- Optimal cost-efficiency zone: 0.2~0.6 for most sliders
+- When analyzing player designs, WARN if: avg > 0.65, any slider > 0.85, or key sliders = 0
+
+### Design Pace (Research Funding)
+- Pure time/cost tradeoff — does NOT affect any ratings
+- Cost: (base/5) + (base × pace² × 4.5) — pace 0.35=75%, 0.5=133%, 1.0=470%
+- Time: pace < 0.5 adds turns, pace > 0.5 saves turns
+- Employees: scales linearly with pace — more pace = more engineers
+- Recommend: 0.2~0.35 (budget), 0.4~0.5 (balanced), 0.6~0.7 (urgent only)
+
+## Key Design Formulas
+- Displacement: CC = 0.7854 × bore² × stroke × cylinders
+- HP = (torque × rpm) / 5252
 - Bore ↑ → displacement ↑ → torque ↑ → HP ↑ (fuel economy ↓)
-- Stroke ↑ → displacement ↑ + torque ↑, but RPM ↓ (net HP may vary)
+- Stroke ↑ → displacement ↑ + torque ↑, but RPM ↓ (net HP varies)
 
 ## Modification Cost Rules
 - New Generation (no component change): 15% of original design cost
@@ -246,7 +302,7 @@ Use the Python-calculated data below AND your knowledge of design formulas to gi
 
 ## Staleness Thresholds
 - Vehicle: safe under ~5 years, penalty starts at age+4 > 9
-- Components (engine/chassis/gearbox): safe under 12 years, steep after 15
+- Components: safe under 12 years, steep after 15
 - Combined staleness > 1.0 → buyer rating divided by staleness^1.2
 
 ## Torque Compatibility
@@ -255,7 +311,13 @@ Use the Python-calculated data below AND your knowledge of design formulas to gi
 
 ## Rating Interpretation
 - Static = at design time, Current = now (with tech progression)
-- Negative delta = design is falling behind current technology
+- Negative delta = design falling behind current technology
+
+## Wiki Design Reference (game mechanics detail)
+{design_reference}
+
+## Current Slider Settings & Estimated Ratings
+{slider_context}
 
 ## Technology Constraints
 Player's design skill (SKILL_RND): {skill_rnd}
@@ -266,7 +328,6 @@ Current year: {current_year}
 
 CRITICAL: Only recommend components from the available list above.
 Do NOT suggest components the player cannot build yet.
-If an upgrade would require unavailable components, explicitly state it's locked.
 
 ## User Question
 {question}
@@ -282,11 +343,12 @@ If an upgrade would require unavailable components, explicitly state it's locked
 
 Instructions:
 1. Reference the specific numbers from calculations (don't re-calculate)
-2. Give concrete recommendations with expected numeric outcomes
-3. Prioritize by cost-effectiveness (biggest improvement per dollar)
-4. Warn about any compatibility issues or urgent staleness
-5. Answer in the same language as the user's question.
-6. NEVER recommend components not in the Available Components list — they are locked by tech level."""
+2. When recommending slider changes, specify WHICH slider, current value, and recommended value
+3. Estimate the cost/rating impact of recommended changes using the calculation results
+4. Prioritize by cost-effectiveness (biggest improvement per dollar)
+5. Warn about any compatibility issues or urgent staleness
+6. Answer in the same language as the user's question
+7. NEVER recommend components not in the Available Components list — they are locked by tech level"""
 
 
 FORECAST_ADVISOR_PROMPT = """\

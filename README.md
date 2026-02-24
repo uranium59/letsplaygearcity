@@ -137,9 +137,11 @@ In interactive mode, a domain-based TTL cache reuses data from previous question
 
 ## Key Modules
 
-### `src/db_query_graph.py` — Main LangGraph Agent
+### `src/db_query_graph.py` — Graph Builder + CLI
 
-Multi-step SQL analysis agent with 16 graph nodes. Handles all question types from simple lookups to strategic recommendations.
+Builds the LangGraph StateGraph via `build_graph()` and provides `run_query()`/`run_interactive()` entry points.
+Node implementations are split across `nodes_pipeline.py`, `nodes_analysis.py`, and `nodes_advisors.py`.
+Progress output uses `_NODE_FORMATTERS` dict dispatch.
 
 ```bash
 poetry run python src/db_query_graph.py                    # Interactive mode
@@ -148,19 +150,39 @@ poetry run python src/db_query_graph.py --test             # Run all test querie
 poetry run python src/db_query_graph.py "path/to/save.db" -q "..."
 ```
 
+### `src/graph_state.py` — Graph State Definition
+
+`GraphState` TypedDict, `StrategyCandidate` TypedDict, `MAX_RETRIES`, `CORE_TABLES` constants.
+
+### `src/nodes_pipeline.py` — SQL Pipeline Nodes
+
+Pre-Router, Planner, Load Schema, SQL Generator, Executor, Router, Retry, Advance nodes.
+
+### `src/nodes_analysis.py` — Analysis + Strategy Nodes
+
+Analyst, Classifier, Strategist, Aggregator nodes.
+
+### `src/nodes_advisors.py` — Specialized Advisor Nodes
+
+- **Design Advisor**: `_fetch_vehicle_data()` → `_fetch_tech_components()` → `_calculate_design_metrics()` → LLM synthesis
+- **Forecast Advisor**: Timeline load → player asset risk analysis → LLM synthesis
+
 ### `src/design_formulas.py` — Vehicle Design Calculation Engine
 
-Pure Python module with no DB/LLM dependencies. Implements GearCity wiki formulas:
+Pure Python module with no DB/LLM dependencies. Implements GearCity wiki formulas.
+Named constants at module top (`DISPLACEMENT_CONSTANT`, `HP_CONVERSION_FACTOR`, `COMPONENT_SAFE_AGE`, etc.).
 
 - **Engine**: `calc_displacement()`, `calc_hp()`, `simulate_bore_change()`, `simulate_stroke_change()`
 - **Vehicle**: `calc_top_speed()`, `calc_acceleration()`
-- **Modification costs**: `estimate_modification_cost()` (15%/20%/25%/100% rules)
-- **Staleness**: `calc_staleness()` (component aging penalties, buyer divisor)
+- **Modification costs**: `estimate_modification_cost()` (`MOD_BASE_PERCENT`/`MOD_CHASSIS_PERCENT` constants)
+- **Staleness**: `calc_staleness()` (component aging penalties, `URGENCY_*` thresholds)
 - **Compatibility**: `check_torque_compatibility()`, `compare_ratings()`
 
 ### `src/event_timeline.py` — War & Economic Forecast Module
 
-Loads pre-parsed `data/turn_events_timeline.json` (extracted from TurnEvents.xml) and provides:
+Loads pre-parsed `data/turn_events_timeline.json` (extracted from TurnEvents.xml) and provides forecasts.
+Threshold constants at module top (`BUYRATE_DOWNTURN_THRESHOLD`, `GAS_SPIKE_THRESHOLD`, etc.)
+with `ECONOMIC_EVENT_CONFIGS` dict and `WAR_SEVERITY_RANK`/`RISK_YEARS_*` constants.
 
 - `get_upcoming_wars()` / `get_active_wars()` — per-city war forecasting
 - `get_upcoming_economic_events()` — recession, gas spike, interest spike detection
@@ -172,7 +194,7 @@ Loads pre-parsed `data/turn_events_timeline.json` (extracted from TurnEvents.xml
 ### `src/session_memory.py` — Domain-Based Session Cache
 
 Reuses query results across questions in interactive mode.
-- `SessionMemory` class: domain-aware TTL cache (get/put/format_context)
+- `SessionMemory` class: domain-aware TTL cache (get/put/format_context/classify_tables/get_valid_domains)
 - `get_memory()` / `reset_memory()`: module-level singleton
 - Injects cache context into Planner/Analyst prompts to reduce redundant SQL calls
 
@@ -186,7 +208,14 @@ BFS crawler for GearCity wiki (wiki.gearcity.info). Saves pages as JSON to `data
 
 ### `parse_turn_events.py` — TurnEvents.xml Analyzer
 
-Standalone analysis script for extracting economic variables and war timelines from game data files. Generates `data/turn_events_timeline.json`.
+Standalone analysis script for extracting economic variables and war timelines from game data files.
+Generates `data/turn_events_timeline.json`.
+XML path is configurable via `GEARCITY_TURN_EVENTS_XML` env variable or CLI argument.
+
+```bash
+poetry run python parse_turn_events.py                              # Load path from .env
+poetry run python parse_turn_events.py "D:\path\to\TurnEvents.xml"  # Direct path
+```
 
 ## Project Structure
 
@@ -197,13 +226,20 @@ letsplaygearcity/
 ├── READMEKR.md                   # Korean README
 ├── project.md                    # Original project spec
 ├── pyproject.toml                # Poetry dependencies
-├── .env                          # GEARCITY_DB_PATH, OLLAMA_MODEL
+├── .env                          # GEARCITY_DB_PATH, OLLAMA_MODEL, GEARCITY_TURN_EVENTS_XML
 ├── crawler.py                    # Wiki crawler
 ├── parse_turn_events.py          # TurnEvents.xml analysis tool
 ├── src/
-│   ├── db_query_graph.py         # ★ Main LangGraph multi-step SQL agent
-│   ├── design_formulas.py        # Vehicle design calculation engine
-│   ├── event_timeline.py         # War & economic event forecast
+│   ├── db_query_graph.py         # ★ Graph builder + CLI entry point
+│   ├── graph_state.py            # GraphState TypedDict + constants
+│   ├── graph_utils.py            # Shared utilities (create_llm, etc.)
+│   ├── prompts.py                # LLM prompt templates
+│   ├── queries.py                # SQL query constants
+│   ├── nodes_pipeline.py         # SQL pipeline nodes (pre_router~advance)
+│   ├── nodes_analysis.py         # Analysis nodes (analyst, classifier, strategist, aggregator)
+│   ├── nodes_advisors.py         # Advisor nodes (design_advisor, forecast_advisor)
+│   ├── design_formulas.py        # Vehicle design calculation engine (named constants)
+│   ├── event_timeline.py         # War & economic event forecast (threshold constants)
 │   ├── session_memory.py         # Domain-based session cache
 │   ├── db_agent.py               # ReAct SQL agent (v1, deprecated)
 │   ├── db_inspector.py           # DB schema -> text extraction

@@ -1,0 +1,411 @@
+# Chassis Game Mechanics
+
+The Game Mechanics section of the manual details the internal formula used in the game's calculations. This section of the manual uses pseudo-code and may not be 100% the same as the code in the game. 
+
+The Game Mechanics part of the manual is mainly designed to be a reference for the frequently asked question, “Why do I get this rating when I do X, Y, Z?!” Usually, this answer involves many different variables, which this section of the manual demonstrates. 
+
+The game mechanics section of the manual shows how the sausage gets made. So you really may want to avoid this portion of the manual if you enjoy the game.
+
+## Variables
+
+This is a table of variables and their descriptions used in the formulas.
+
+### Sliders
+
+| Variable | Description | | Variable | Description |
+| --- | --- | --- | --- | --- |
+| Slider_FD_Length | Slider: Frame Dimensions ⇒ Wheelbase (Length) | | Slider_FD_Width | Slider: Frame Dimensions ⇒ Track (Width) |
+| Slider_FD_Height | Slider: Frame Dimensions ⇒ Frame Height | | Slider_FD_Weight | Slider: Frame Dimensions ⇒ Frame Weight |
+| Slider_FD_ENG_Width | Slider: Frame Dimensions ⇒ Maximum Supported Engine Width | | Slider_FD_ENG_Length | Slider: Frame Dimensions ⇒ Maximum Supported Engine Length |
+| Slider_SUS_Stability | Slider: Suspension ⇒ Stability | | Slider_SUS_Comfort | Slider: Suspension ⇒ Ride Comfort |
+| Slider_SUS_Performance | Slider: Suspension ⇒ Performance | | Slider_SUS_Braking | Slider: Suspension ⇒ Braking |
+| Slider_SUS_Durability | Slider: Suspension ⇒ Durability | | Slider_DE_Performance | Slider: Design Focus ⇒ Design Performance |
+| Slider_DE_Control | Slider: Design Focus ⇒ Design Control | | Slider_DE_Str | Slider: Design Focus ⇒ Design Strength |
+| Slider_DE_Depend | Slider: Design Focus ⇒ Design Dependability | | Slider_DesignPace | Slider: Design Focus ⇒ Development Pace |
+| Slider_TECH_Materials | Slider: Component Quality ⇒ Material Quality | | Slider_TECH_Compoenents | Slider: Component Quality ⇒ Component Quality |
+| Slider_TECH_Techniques | Slider: Component Quality ⇒ Manufacturing Techniques | | Slider_TECH_Tech | Slider: Component Quality ⇒ Technology |
+
+### Sub-Components
+
+| Variable | Description | | Variable | Description |
+| --- | --- | --- | --- | --- |
+| SubComponent_Frame_Str | Frame Strength Value | | SubComponent_Frame_Safety | Frame Safety Value |
+| SubComponent_Frame_Durability | Frame Durability Value | | SubComponent_Frame_Weight | Frame Weight Value |
+| SubComponent_Frame_Design | Frame Design Requirements Value | | SubComponent_Frame_Manu | Frame Manufacturing Requirements Value |
+| SubComponent_Frame_Cost | Frame Cost Requirements Value | | SubComponent_Frame_Performance | Frame Performance Value |
+| SubComponent_FrSus_Steering | Front Suspension Handling Value | | SubComponent_FrSus_Braking | Front Suspension Braking Value |
+| SubComponent_FrSus_Comfort | Front Suspension Comfort Value | | SubComponent_FrSus_Performance | Front Suspension Performance Value |
+| SubComponent_FrSus_Durability | Front Suspension Durability Value | | SubComponent_FrSus_Manu | Front Suspension Manufacturing Requirements Value |
+| SubComponent_FrSus_Design | Front Suspension Design Requirements Value | | SubComponent_FrSus_Cost | Front Suspension Costs Requirements Value |
+| SubComponent_RrSus_Braking | Rear Suspension Braking Value | | SubComponent_RrSus_Steering | Rear Suspension Handling Value |
+| SubComponent_RrSus_Performance | Rear Suspension Performance Value | | SubComponent_RrSus_Comfort | Rear Suspension Comfort Value |
+| SubComponent_RrSus_Manu | Rear Suspension Manufacturing Requirements Value | | SubComponent_RrSus_Durability | Rear Suspension Durability Value |
+| SubComponent_RrSus_Cost | Front Suspension Costs Requirements Value | | SubComponent_RrSus_Design | Front Suspension Design Requirements Value |
+| SubComponent_Drive_rideSteering | Drivetrain Driveability Value | | SubComponent_Drive_ridePerformance | Performance Handling Value |
+| SubComponent_Drive_Duriblity | Drivetrain Durability Value | | SubComponent_Drive_Weight | Drivetrain Weight Value |
+| SubComponent_Drive_carPerformance | Drivetrain Performance Value | | SubComponent_Drive_Manu | Drivetrain Manufacturing Requirements Value |
+| SubComponent_Drive_Design | Drivetrain Design Requirements Value | | SubComponent_Drive_Cost | Drivetrain Costs Requirements Value |
+| SubComponent_Drivetain_Engine_Width | Drivetrain Maximum Supported Engine Width Value | | SubComponent_Drivetain_Engine_Length | Drivetrain Maximum Supported Engine Length Value |
+
+### Global
+
+| Variable | Description | | Variable | Description |
+| --- | --- | --- | --- | --- |
+| Year | Current game year | | Marq_DesignChassisSkill | Chassis design skill of the selected marque |
+| Global_Lengths | Global vehicle length variable as defined in the TurnEvents.xml file | | Global_Weight | Global vehicle width variable as defined in the TurnEvents.xml file |
+| PreResearchChassisAmountEffect | Research team's bonus on chassis design | | designRandomVal | Random variation based on workmanship image/skill ratings. |
+| carPriceRate | Global vehicle costs variable as defined in the TurnEvents.xml file | | | |
+| ex_0d9962p_year99 | 0.9962^(year-1899) | | ex_1d003p_year99 | 1.003^(year-1899) |
+| ex_1d005p_year99 | 1.005^(year-1899) | | ex_1d015p_year99 | 1.015^(year-1899) |
+| ex_1d02p_year99 | 1.02^(year-1899) | | ex_1d025p_year99 | 1.025^(year-1899) |
+| ex_1d028p_year99 | 1.028^(year-1899) | | ex_1d032p_year99 | 1.032^(year-1899) |
+| ex_1d045p_year99 | 1.045^(year-1899) | | | |
+
+## Specs
+
+### Chassis Length
+
+Chassis length in cm.
+
+Chassis_Length = (145 + Global_Lengths * (2.3*Slider_FD_Length)) - ((Global_Lengths * 0.5)/5)
+
+### Chassis Width
+
+Chassis width in cm.
+
+Chassis_Width = (100 + Global_Width * Slider_FD_Width + 20 * Slider_FD_Length)
+
+### Chassis Weight
+
+Chassis width in kg.
+
+Chassis_Weight = 40 + ((Global_Weight) * (1.25*Slider_FD_Weight+0.1) +
+ ((Global_Weight*.5)*(6*Slider_FD_Length+0.1)) +
+ ((Global_Weight/15)*(3.3*Slider_FD_Width+0.1)) + 
+ ((Global_Weight/20)*(2*Slider_FD_Height+0.1)) +
+ ((Global_Weight/5)*(5*SubComponent_Frame_Weight+0.1)) + 
+ ((Global_Weight/10)*(3*SubComponent_Drive_Weight+0.1)) - 
+ ((Global_Weight/5)*(Slider_TECH_Materials)) -
+ ((Global_Weight/8)*(Slider_DE_Performance)) - 
+ ((Global_Weight/11)*(Slider_TECH_Techniques)))
+ 
+if year is less than 1981)
+ Chassis_Weight /= (2.0 * ex_0d9962p_year99)
+else
+ Chassis_Weight /= (1.469262941607760500229789005264 )
+
+### Max Engine Length
+
+Maximum engine length in inches.
+
+Max_Engine_Length = (8 + ((((Global_Lengths*2.25) / 24) * 
+ ((Slider_FD_Length+.1)*2.5)) + ((Global_Lengths*2.25) / 24) * 
+ (Slider_FD_ENG_Length+.1)))*SubComponent_Drivetain_Engine_Length
+
+### Max Engine Width
+
+Maximum engine width in inches.
+
+Max_Engine_Width = (8 + ((12 * ((Slider_FD_Width+0.1))*2.5) + 13 *
+ (1.25*Slider_FD_ENG_Width + 0.1)))*SubComponent_Drivetain_Engine_Width
+
+## Ratings
+
+### Comfort Rating
+
+Value limited between 0 to 100.
+
+Comfort_Rating = ((Slider_DE_Control ) + (SubComponent_Drive_rideSteering) +
+ (Slider_FD_Weight ) + (SubComponent_FrSus_Braking + 
+ SubComponent_RrSus_Braking + Slider_SUS_Braking * 4.5) + 
+ (SubComponent_FrSus_Comfort + SubComponent_RrSus_Comfort + 
+ Slider_SUS_Comfort * 6 ) + (SubComponent_FrSus_Steering + 
+ SubComponent_RrSus_Steering + Slider_SUS_Stability * 4.5) + 
+ ((Slider_TECH_Compoenents + Slider_TECH_Materials + 
+ Slider_TECH_Tech + Slider_TECH_Techniques)/2))
+ 
+ 
+Comfort_Rating /= 2.6
+ 
+Comfort_Rating *= 10
+ 
+Comfort_Rating += (10 * (Marq_DesignChassisSkill/100.0))
+ 
+if Comfort_Rating is greater than 100
+ Comfort_Rating = 100
+ 
+
+### Performance Rating
+
+Value limited between 0 to 100.
+
+Performance_Rating = Slider_SUS_Braking*2 +(Slider_DE_Performance) - 
+ (Slider_FD_Weight*2)+ (Slider_SUS_Performance*4)+
+ (SubComponent_FrSus_Steering)+(SubComponent_RrSus_Steering)+
+ ((Slider_TECH_Compoenents+Slider_TECH_Materials*2+
+ Slider_TECH_Tech+Slider_TECH_Techniques)/2.0)+
+ SubComponent_FrSus_Performance + SubComponent_RrSus_Performance + 
+ SubComponent_Frame_Performance + SubComponent_Drive_carPerformance*2 - 
+ (Slider_FD_Length+Slider_FD_Width)+(1.0-Slider_SUS_Stability)
+ 
+Performance_Rating /= 2.0
+ 
+Performance_Rating *= 10
+ 
+Performance_Rating += (10 * (Marq_DesignChassisSkill/100.0))
+ 
+if Performance_Rating is greater than 100
+ Performance_Rating = 100
+
+### Strength Rating
+
+Value limited between 0 to 100.
+
+Strength_Rating = (((SubComponent_Drive_Weight + SubComponent_Frame_Weight)/4) + 
+ Slider_FD_Weight*2 + ((SubComponent_Drive_Duriblity + SubComponent_Frame_Durability + 
+ SubComponent_RrSus_Durability + SubComponent_FrSus_Durability )/6) + 
+ Slider_FD_Height * 5 + SubComponent_Frame_Str*8 + Slider_DE_Str + 
+ ((Slider_TECH_Compoenents*2 + Slider_TECH_Materials*2 + 
+ Slider_TECH_Tech*2 + Slider_TECH_Techniques*2)/2)+(Slider_FD_Length))
+ 
+Strength_Rating /= 2.6
+ 
+Strength_Rating *= 10
+ 
+Strength_Rating += (10 * (Marq_DesignChassisSkill/100.0))
+ 
+if Strength_Rating is greater than 100
+ Strength_Rating = 100
+
+### Durability Rating
+
+Value limited between 0 to 100.
+
+Durability_Rating = Slider_DE_Depend*0.5 + SubComponent_Drive_Duriblity*1.5 + 
+ SubComponent_Frame_Durability*1.5 + ((SubComponent_FrSus_Durability + 
+ SubComponent_RrSus_Durability)/2) + Slider_SUS_Durability*2.5 + 
+ ((Slider_TECH_Compoenents + Slider_TECH_Materials + 
+ Slider_TECH_Techniques - Slider_TECH_Tech))
+ 
+Durability_Rating *= 10
+ 
+Durability_Rating += (10 * (Marq_DesignChassisSkill/100.0))
+ 
+if Durability_Rating is greater than 100
+ Durability_Rating = 100
+
+### Overall Rating
+
+Value limited between 0 to 100.
+
+Overall_Rating = (Comfort_Rating + Performance_Rating +
+ Strength_Rating + Durability_Rating + Marq_DesignChassisSkill)/5
+ 
+Overall_Rating += (5*PreResearchChassisAmountEffect)
+ 
+if Overall_Rating is greater than 100
+ Overall_Rating = 100
+
+### Design Requirements
+
+Value limited between 0 to 100.
+
+Design_Req = (Slider_DE_Control + Slider_DE_Depend + Slider_DE_Performance 
+ + Slider_DE_Str + SubComponent_Drive_Design + SubComponent_Frame_Design 
+ + SubComponent_FrSus_Design + SubComponent_RrSus_Design) 
+ 
+Design_Req += ((Slider_FD_ENG_Length + Slider_FD_ENG_Width + (1- Slider_FD_Weight)
+ + Slider_SUS_Braking + Slider_SUS_Comfort + Slider_SUS_Durability
+ + Slider_SUS_Performance + Slider_TECH_Tech)/4)
+ 
+Design_Req = (Design_Req - Slider_TECH_Techniques) * 10
+
+### Manufacturing Requirements
+
+Manufacturing_Req = ((SubComponent_Frame_Weight/2) + Slider_SUS_Durability + Slider_DE_Depend
+ + Slider_TECH_Compoenents + Slider_TECH_Materials + Slider_TECH_Tech
+ + (Slider_TECH_Techniques * 1.5) + SubComponent_Frame_Manu + SubComponent_Drive_Manu
+ + SubComponent_FrSus_Manu + SubComponent_RrSus_Manu);
+ 
+Manufacturing_Req = Manufacturing_Req * 10 + 0.01;
+
+## Miscellaneous
+
+### Employees Required
+
+if year before 2021
+ Engineers_Required = Design_Req * (0.08833*(year-1899)+0.275);
+else 
+ Engineers_Required = Design_Req * (0.08833*(121)+0.275);
+ 
+ 
+Engineers_Required = Engineers_Required/5 + ((Engineers_Required/1.2)*Slider_DesignPace) + 2;
+
+### Manufacturing Costs
+
+Costs_Dimension_Sliders = (Slider_FD_Height * Slider_FD_Height) + 
+ (Slider_FD_Length * Slider_FD_Length*1.2) +
+ (Slider_FD_Width*Slider_FD_Width) + ((1-Slider_FD_Weight) * 
+ (1-Slider_FD_Weight)) +
+ (Slider_FD_ENG_Length * Slider_FD_ENG_Length*0.8) + 
+ (Slider_FD_ENG_Width *Slider_FD_ENG_Width *0.8)
+ 
+Costs_Frame = ((Costs_Dimension_Sliders * (25* ex_1d015p_year99) * 
+ SubComponent_Drive_Cost) 
+ * SubComponent_Frame_Cost) * ex_1d015p_year99 * (carPriceRate)
+ 
+ 
+Costs_Frame = 15 * ex_1d02p_year99+ Costs_Frame + 1 + (.04 * Costs_Frame) + 
+ (15 * ex_1d015p_year99 * SubComponent_Drive_Cost) + 
+ (15 * ex_1d015p_year99 * SubComponent_Frame_Cost)
+ 
+ 
+ 
+Costs_Suspensions_Sliders = (Slider_SUS_Braking * Slider_SUS_Braking * 0.75) + 
+ (Slider_SUS_Comfort * Slider_SUS_Comfort *1.25 ) +
+ (Slider_SUS_Performance * Slider_SUS_Performance *1.2 )+ 
+ (Slider_SUS_Durability * Slider_SUS_Durability *1.35 ) + 
+ (Slider_SUS_Stability * Slider_SUS_Stability )
+ 
+Costs_Suspension = (( Costs_Suspensions_Sliders * (20 * ex_1d02p_year99) * 
+ SubComponent_FrSus_Cost) * SubComponent_RrSus_Cost) *
+ ex_1d015p_year99 * (carPriceRate)
+ 
+Costs_Suspension = 15 * ex_1d02p_year99+ Costs_Suspension + 
+ 1 + (.04 * Costs_Suspension) + 
+ (15 * ex_1d015p_year99 * SubComponent_FrSus_Cost) +
+ (15 * ex_1d015p_year99 * SubComponent_RrSus_Cost)
+ 
+ 
+Costs_Tech_Sliders = (Slider_TECH_Compoenents * Slider_TECH_Compoenents * 1.15) + 
+ (Slider_TECH_Materials * Slider_TECH_Materials * 1.25) +
+ (Slider_TECH_Tech * Slider_TECH_Tech * 1.25) + 
+ (Slider_TECH_Techniques * Slider_TECH_Techniques * 0.75)
+ 
+ 
+Costs_Tech = Costs_Tech_Sliders * (30 * ex_1d015p_year99) * (carPriceRate)
+ 
+Costs_Tech = 15 * ex_1d015p_year99+ Costs_Tech + 1 + (.04 * Costs_Tech)
+ 
+ 
+Costs_Hyper_Sliders = ((Slider_DE_Control + Slider_DE_Depend + 
+ Slider_DE_Performance + Slider_DE_Str) +
+ (Slider_FD_Length+ Slider_FD_Width+ Slider_FD_Height + 
+ (1-Slider_FD_Weight)+ Slider_FD_ENG_Width + Slider_FD_ENG_Length) +
+ (Slider_SUS_Stability + Slider_SUS_Comfort + Slider_SUS_Performance +
+ Slider_SUS_Braking+Slider_SUS_Durability) +
+ (Slider_TECH_Materials+ Slider_TECH_Compoenents +
+ Slider_TECH_Techniques + Slider_TECH_Tech))/19.0
+ 
+ 
+Costs_Hyper = 450 * ex_1d045p_year99 * (Costs_Hyper_Sliders^4)
+ 
+Manufacturing_Costs = ((Costs_Frame + Costs_Suspension + Costs_Tech) *
+ (carPriceRate)) * designRandomVal
+ 
+Manufacturing_Costs += Manufacturing_Costs-((Manufacturing_Costs/10.0)
+ * (Marq_DesignChassisSkill/100.0))
+
+### Design Costs
+
+ 
+DesignCosts_FrameSliders = (Slider_FD_ENG_Length * Slider_FD_ENG_Length ) +
+ (Slider_FD_ENG_Width * Slider_FD_ENG_Width) + 
+ (Slider_FD_Height *Slider_FD_Height ) + 
+ (Slider_FD_Length * Slider_FD_Length * 1.2) + 
+ (Slider_FD_Width * Slider_FD_Width * 0.8) + 
+ (1-(Slider_FD_Weight * Slider_FD_Weight * 0.8))
+ 
+ 
+DesignCosts_Frame = DesignCosts_FrameSliders * (7000 * ex_1d028p_year99)
+ 
+DesignCosts_Frame = (DesignCosts_Frame + 5000 ) * 
+ SubComponent_Frame_Design * SubComponent_Drive_Design;
+ 
+DesignCosts_SuspensionSliders = (Slider_SUS_Braking * Slider_SUS_Braking * 0.8 ) + 
+ (Slider_SUS_Comfort * Slider_SUS_Comfort * 1.2) + 
+ (Slider_SUS_Durability * Slider_SUS_Durability * 1.25) + 
+ (Slider_SUS_Performance * Slider_SUS_Performance * 1.15 ) + 
+ (Slider_SUS_Stability * Slider_SUS_Stability * 1.05)
+ 
+DesignCost_Suspension = DesignCosts_SuspensionSliders * (9000 * ex_1d028p_year99)
+ 
+DesignCost_Suspension = (DesignCost_Suspension + 2500) * 
+ SubComponent_FrSus_Design * SubComponent_RrSus_Design
+ 
+DesignCosts_DesignSliders = (Slider_DE_Control*Slider_DE_Control*10) + 
+ (Slider_DE_Depend*Slider_DE_Depend*10) + 
+ (Slider_DE_Performance*Slider_DE_Performance*10) + 
+ (Slider_DE_Str*Slider_DE_Str*10)
+ 
+DesignCosts_Design = DesignCosts_DesignSliders * (14000 * ex_1d028p_year99)
+ 
+DesignCosts_Design = (DesignCosts_Design + 12000 ) * SubComponent_Frame_Design *
+ SubComponent_Drive_Design * SubComponent_FrSus_Design *
+ SubComponent_RrSus_Design
+ 
+DesignCosts_TechSliders = (Slider_TECH_Compoenents * Slider_TECH_Compoenents) +
+ (Slider_TECH_Materials * Slider_TECH_Materials ) + 
+ (Slider_TECH_Tech * Slider_TECH_Tech ) + 
+ (Slider_TECH_Techniques * Slider_TECH_Techniques)
+ 
+DesignCosts_Tech = DesignCosts_TechSliders * (9500 * ex_1d028p_year99)
+ 
+DesignCosts_Tech = (DesignCosts_Tech + 15000)
+ 
+//See Manufacturing Costs For Calculations.
+Costs_Hyper_Sliders = Costs_Hyper_Sliders * (100*ex_1d025p_year99);
+ 
+DesignCosts = (DesignCosts_Frame + DesignCost_Suspension + DesignCosts_Design +
+ DesignCosts_Tech + Costs_Hyper_Sliders) *ex_1d032p_year99
+ 
+DesignCosts = (DesignCosts/5)+(DesignCosts*(Slider_DesignPace*Slider_DesignPace*4.5))
+
+### Finish Time
+
+FinishTime_Frame = ((Slider_FD_Height + Slider_FD_Length + Slider_FD_Width +
+ ((Slider_FD_ENG_Length + Slider_FD_ENG_Width)/1.5))/
+ (Slider_FD_Weight + .25))
+ 
+FinishTime_Suspension = ((Slider_SUS_Braking*0.5 + Slider_SUS_Comfort + 
+ Slider_SUS_Durability + Slider_SUS_Performance + 
+ Slider_SUS_Stability)/2)
+ 
+FinishTime_Design = (Slider_DE_Control + Slider_DE_Depend + 
+ Slider_DE_Performance + Slider_DE_Str) * 6
+ 
+FinishTime_Tech = ((Slider_TECH_Compoenents + Slider_TECH_Materials + 
+ Slider_TECH_Tech) / 1.25);
+ 
+FinishTime = 4 + ((FinishTime_Frame + FinishTime_Suspension + 
+ FinishTime_Design + FinishTime_Tech)/4.95) * 
+ ex_1d005p_year99 + (1.15*ex_1d003p_year99*hyperSliders)
+ 
+ 
+if year is less than 2020
+{
+ if Slider_DesignPace+0.05 is greater than 0
+ AdditionalTime = (((year-1840)/15.0)*((0.5/(Slider_DesignPace+0.05))-0.45))
+ else
+ AdditionalTime = (((year-1840)/15.0)*((0.5/(0.05))-0.45))
+}
+else
+{
+ if Slider_DesignPace+0.05 is greater than 0
+ AdditionalTime = (((2020-1840)/15.0)*((0.5/(Slider_DesignPace+0.05))-0.45))
+ else
+ AdditionalTime = ( ((2020-1840)/15.0 ) *((0.5/(0.05) ) -0.45) )
+}
+ 
+if Slider_DesignPace is less than 0.5
+{
+ FinishTime = FinishTime + AdditionalTime;
+}
+else
+{
+ TurnsOff = (Slider_DesignPace - 0.5)/0.20;
+ FinishTime = FinishTime + (AdditionalTime - TurnsOff);
+}
+ 
+if FinishTime is less than 1
+ FinishTime = 1;

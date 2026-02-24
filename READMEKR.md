@@ -123,9 +123,11 @@ Pre-Router는 키워드 기반 사전분류로, forecast/design 질문을 SQL �
 
 ## 핵심 스크립트
 
-### `src/db_query_graph.py` — LangGraph 멀티스텝 SQL 에이전트
+### `src/db_query_graph.py` — 그래프 빌더 + CLI
 
-16개 노드의 StateGraph. 질문 유형별 5가지 파이프라인 제공.
+`build_graph()`로 StateGraph 구성, `run_query()`/`run_interactive()`로 실행.
+노드 구현은 `nodes_pipeline.py`, `nodes_analysis.py`, `nodes_advisors.py`에 분리.
+노드별 진행 상황 출력은 `_NODE_FORMATTERS` dict dispatch 패턴 사용.
 
 ```bash
 poetry run python src/db_query_graph.py                          # 대화형 모드
@@ -134,18 +136,38 @@ poetry run python src/db_query_graph.py --test                   # 테스트 쿼
 poetry run python src/db_query_graph.py "D:\path\to\save.db" -q "..."  # 커스텀 DB
 ```
 
+### `src/graph_state.py` — 그래프 상태 정의
+
+`GraphState` TypedDict, `StrategyCandidate` TypedDict, `MAX_RETRIES`, `CORE_TABLES` 상수.
+
+### `src/nodes_pipeline.py` — SQL 파이프라인 노드
+
+Pre-Router, Planner, Load Schema, SQL Generator, Executor, Router, Retry, Advance 노드.
+
+### `src/nodes_analysis.py` — 분석 + 전략 파이프라인 노드
+
+Analyst, Classifier, Strategist, Aggregator 노드.
+
+### `src/nodes_advisors.py` — 전문 자문 노드
+
+- **Design Advisor**: `_fetch_vehicle_data()` → `_fetch_tech_components()` → `_calculate_design_metrics()` → LLM 합성
+- **Forecast Advisor**: 타임라인 로드 → 플레이어 자산 위험 분석 → LLM 합성
+
 ### `src/design_formulas.py` — 차량 설계 계산 엔진
 
 DB/LLM 의존성 없는 순수 Python 계산 모듈. GearCity 위키 공식 구현.
+모듈 상단에 명명 상수 정의 (`DISPLACEMENT_CONSTANT`, `HP_CONVERSION_FACTOR`, `COMPONENT_SAFE_AGE` 등).
 - 엔진: `calc_displacement()`, `calc_hp()`, `simulate_bore_change()`, `simulate_stroke_change()`
 - 차량: `calc_top_speed()`, `calc_acceleration()`
-- 개선 비용: `estimate_modification_cost()` (15%/20%/25%/100% 규칙)
-- 노후화: `calc_staleness()` (컴포넌트 에이징 페널티, buyer divisor)
+- 개선 비용: `estimate_modification_cost()` (`MOD_BASE_PERCENT`/`MOD_CHASSIS_PERCENT` 상수)
+- 노후화: `calc_staleness()` (컴포넌트 에이징 페널티, `URGENCY_*` 임계값)
 - 호환성: `check_torque_compatibility()`, `compare_ratings()`
 
 ### `src/event_timeline.py` — 전쟁/경제 이벤트 예측 모듈
 
 `data/turn_events_timeline.json`(TurnEvents.xml에서 추출)을 로드하여 예측 제공.
+모듈 상단에 경제 임계값 상수 (`BUYRATE_DOWNTURN_THRESHOLD` 등), `ECONOMIC_EVENT_CONFIGS` 딕셔너리,
+`WAR_SEVERITY_RANK`, `RISK_YEARS_*` 상수 정의.
 - `get_upcoming_wars()` / `get_active_wars()`: 도시별 전쟁 예측
 - `get_upcoming_economic_events()`: 침체, 유가 급등, 금리 급등 감지
 - `check_player_asset_risks()`: 플레이어 공장/지점 도시와 미래 전쟁 교차분석
@@ -155,7 +177,7 @@ DB/LLM 의존성 없는 순수 Python 계산 모듈. GearCity 위키 공식 구�
 ### `src/session_memory.py` — 도메인 기반 세션 캐시
 
 대화형 모드에서 질문 간 데이터를 재활용하는 세션 메모리.
-- `SessionMemory`: 도메인별 TTL 캐시 (get/put/format_context)
+- `SessionMemory`: 도메인별 TTL 캐시 (get/put/format_context/classify_tables/get_valid_domains)
 - `get_memory()` / `reset_memory()`: 모듈 수준 싱글톤
 - Planner/Analyst에게 캐시 컨텍스트를 주입하여 중복 SQL 호출 방지
 
@@ -175,6 +197,11 @@ GearCity 위키에서 인게임 관련 페이지를 BFS로 크롤링하여 `data
 
 게임 외부 데이터 파일에서 경제 변수와 전쟁 타임라인을 추출하는 독립 분석 도구.
 `data/turn_events_timeline.json` 생성용.
+XML 경로는 `GEARCITY_TURN_EVENTS_XML` 환경변수 또는 CLI 인자로 지정 가능.
+```bash
+poetry run python parse_turn_events.py                          # .env에서 경로 로드
+poetry run python parse_turn_events.py "D:\path\to\TurnEvents.xml"  # 직접 지정
+```
 
 ## 프로젝트 구조
 
@@ -185,13 +212,20 @@ letsplaygearcity/
 ├── READMEKR.md                   # 한국어 README (이 파일)
 ├── project.md                    # 원본 프로젝트 명세
 ├── pyproject.toml                # Poetry 의존성
-├── .env                          # GEARCITY_DB_PATH, OLLAMA_MODEL 설정
+├── .env                          # GEARCITY_DB_PATH, OLLAMA_MODEL, GEARCITY_TURN_EVENTS_XML 설정
 ├── crawler.py                    # 위키 크롤러
 ├── parse_turn_events.py          # TurnEvents.xml 분석 도구
 ├── src/
-│   ├── db_query_graph.py         # ★ LangGraph 멀티스텝 SQL 에이전트 (메인)
-│   ├── design_formulas.py        # 차량 설계 계산 엔진
-│   ├── event_timeline.py         # 전쟁/경제 이벤트 예측 모듈
+│   ├── db_query_graph.py         # ★ 그래프 빌더 + CLI (메인 진입점)
+│   ├── graph_state.py            # GraphState TypedDict + 상수
+│   ├── graph_utils.py            # 공용 유틸 (create_llm 등)
+│   ├── prompts.py                # LLM 프롬프트 템플릿 모음
+│   ├── queries.py                # SQL 쿼리 상수 모음
+│   ├── nodes_pipeline.py         # SQL 파이프라인 노드 (pre_router~advance)
+│   ├── nodes_analysis.py         # 분석 노드 (analyst, classifier, strategist, aggregator)
+│   ├── nodes_advisors.py         # 전문 자문 노드 (design_advisor, forecast_advisor)
+│   ├── design_formulas.py        # 차량 설계 계산 엔진 (명명 상수)
+│   ├── event_timeline.py         # 전쟁/경제 이벤트 예측 (임계값 상수)
 │   ├── session_memory.py         # 도메인 기반 세션 캐시
 │   ├── db_agent.py               # ReAct SQL 에이전트 (v1, deprecated)
 │   ├── db_inspector.py           # DB 스키마 → 텍스트 추출

@@ -1,0 +1,523 @@
+# Engine Game Mechanics
+
+The Game Mechanics section of the manual details the internal formula used in the game's calculations. This section of the manual uses pseudo-code and may not be 100% the same as the code in the game. 
+
+The Game Mechanics part of the manual is mainly designed to be a reference for the frequently asked question, “Why do I get this rating when I do X, Y, Z?!” Usually, this answer involves many different variables, which this section of the manual demonstrates. 
+
+The game mechanics section of the manual shows how the sausage gets made. So you really may want to avoid this portion of the manual if you enjoy the game.
+
+## Variables
+
+This is a table of variables and their descriptions used in the formulas.
+
+### Sliders
+
+| Variable | Description | | Variable | Description |
+| --- | --- | --- | --- | --- |
+| Slider_Layout_Bore | Sliders: Engine Design Layout ⇒ Bore | | Slider_Layout_Stroke | Sliders: Engine Design Layout ⇒ Stroke |
+| Slider_Layout_Length | Sliders: Engine Design Layout ⇒ Length | | Slider_Layout_Width | Sliders: Engine Design Layout ⇒ Width |
+| Slider_Layout_Displacement | (Slider_Layout_Bore + Slider_Layout_Stroke) ÷ 2.0 | | Slider_Layout_Weight | Sliders: Engine Design Layout ⇒ Weight |
+| Slider_Performance_Revolutions | Sliders: Engine Design Performance ⇒ Revolutions | | Slider_Performance_Torque | Sliders: Engine Design Performance ⇒ Engine Torque |
+| Slider_Performance_FuelEconomy | Sliders: Engine Design Performance ⇒ Fuel Economy | | Slider_DesignFocus_Performance | Sliders: Engine Design Focus ⇒ Focus on Performance |
+| Slider_DesignFocus_FuelEconomy | Sliders: Engine Design Focus ⇒ Focus on Fuel Economy | | Slider_DesignFocus_Dependability | Sliders: Engine Design Focus ⇒ Focus on Dependability |
+| Slider_DesignFocus_DesignPace | Sliders: Engine Design Focus ⇒ Development Pace | | Slider_Technology_Materials | Sliders: Engine Design Technology ⇒ Material Quality |
+| Slider_Technology_Components | Sliders: Engine Design Technology ⇒ Component Quality | | Slider_Technology_Technologies | Sliders: Engine Design Technology ⇒ Technology |
+| Slider_Technology_Techniques | Sliders: Engine Design Technology ⇒ Manufacturing Techniques | | | |
+
+### Sub-Components
+
+| Variable | Description | | Variable | Description |
+| --- | --- | --- | --- | --- |
+| SubComponent_Layout_UnitCosts | Engine Layout Unit Costs | | SubComponent_Layout_DesignCosts | Engine Layout Design Costs |
+| SubComponent_Layout_DesignRequirements | Engine Layout Design Requirements | | SubComponent_Layout_ManufacturingRequirements | Engine Layout Manufacturing Requirements |
+| SubComponent_Layout_Reliability | Engine Layout Reliability Value | | SubComponent_Layout_Weight | Engine Layout Weight Value |
+| SubComponent_Layout_FinishTime | Engine Layout Research Finish Time Value | | SubComponent_Layout_Width | Engine Layout Width Value |
+| SubComponent_Layout_Length | Engine Layout Length Value | | SubComponent_Layout_Smoothness | Engine Layout Smoothness Value |
+| SubComponent_Layout_ValveLimit | Engine Layout What Valves Layout Can Use | | SubComponent_Layout_UseDisplacement | Engine Layout Measured in Displacement |
+| SubComponent_Layout_CylinderLengthArrangment | Engine Layout Number of Cylinder Banks | | SubComponent_Layout_FuelRatings | Engine Layout Fuel Economy Value |
+| SubComponent_Layout_PowerRatings | Engine Layout Power Rating Value | | SubComponent_Layout_Turbined | Engine Layout is Circler |
+| SubComponent_Cylinders_UnitCosts | Cylinder Unit Costs Value | | SubComponent_Cylinders_DesignCosts | Cylinder Design Costs Value |
+| SubComponent_Cylinders_DesignRequire | Cylinder Design Requirements | | SubComponent_Cylinders_ManufacturingRequire | Cylinder Manufacturing Requirements |
+| SubComponent_Cylinders_PowerRating | Cylinder Power Value | | SubComponent_Cylinders_FuelRating | Cylinder Fuel Value |
+| SubComponent_Cylinders_ReliabilityRating | Cylinder Reliability Value | | SubComponent_Cylinders_Weight | Cylinder Weight Value |
+| SubComponent_Cylinders_FinishTime | Cylinders Research Finish Time Value | | SubComponent_Cylinders_CylinderCount | Number of Cylinders |
+| SubComponent_Cylinders_SmoothnessRating | Cylinder Smoothness Value | | SubComponent_FuelType_UnitCosts | Fuel Type Unit Costs |
+| SubComponent_FuelType_DesignCosts | Fuel Type Design Costs | | SubComponent_FuelType_DesignRequirements | Fuel Type Design Requirements |
+| SubComponent_FuelType_ManufacturingRequirements | Fuel Type Manufacturing Requirements | | SubComponent_FuelType_PowerRating | Fuel Type Power Value |
+| SubComponent_FuelType_FuelRating | Fuel Type Fuel Economy Value | | SubComponent_FuelType_ReliabilityRating | Fuel Type Reliability Value |
+| SubComponent_FuelType_Weight | Fuel Type Weight Value | | SubComponent_FuelType_FinishTime | Fuel Type Research Finish Time Value |
+| SubComponent_FuelType_RPM | Fuel Type RPM Value | | SubComponent_FuelType_SmoothnessRating | Fuel Type Smoothness Value |
+| SubComponent_FuelType_PopularityRating | Fuel Type Popularity Value | | SubComponent_Induction_UnitCosts | Induction System Unit Costs |
+| SubComponent_Induction_DesignCosts | Induction System Design Costs | | SubComponent_Induction_DesignRequirements | Induction System Design Requirements |
+| SubComponent_Induction_ManufacturingRequirements | Induction System Manufacturing Requirements | | SubComponent_Induction_PowerRating | Induction System Power Value |
+| SubComponent_Induction_FuelRating | Induction System Fuel Economy Value | | SubComponent_Induction_ReliabilityRating | Induction System Reliability Value |
+| SubComponent_Induction_Weight | Induction System Weight Value | | SubComponent_Induction_FinishTime | Induction System Research Finish Time Value |
+| SubComponent_Valve_UnitCosts | Valve System Unit Costs | | SubComponent_Valve_DesignCosts | Valve System Design Costs |
+| SubComponent_Valve_DesignRequirements | Valve System Design Requirements | | SubComponent_Valve_ManufacturingRequirements | Valve System Manufacturing Requirements |
+| SubComponent_Valve_FuelRating | Valve System Fuel Economy Value | | SubComponent_Valve_ReliabilityRating | Valve System Fuel Reliability Value |
+| SubComponent_Valve_Weight | Valve System Fuel Weight Value | | SubComponent_Valve_FinishTime | Valve System Research Finish Time Value |
+| SubComponent_Valve_RPM | Valve System RPM Value | | SubComponent_Valve_SmoothnessRating | Valve System Smoothness Value |
+| SubComponent_Valve_Size | Valve System Size Value | | SubComponent_Valve_PowerRating | Valve System Power Value |
+
+### Global
+
+| Variable | Description | | Variable | Description |
+| --- | --- | --- | --- | --- |
+| Year | Current game year | | Marq_DesignEngineSkill | Engine design skill of the selected marque |
+| AdjustedYear | Year - 1899 (Value is set to 121 after 2020) | | PreResearchEngineAmountEffect | Research team's bonus on engine design |
+| Global_Interest_Rate | Global Interest Rates as defined in the TurnEvents.xml file | | carPriceRate | Global vehicle costs variable as defined in the TurnEvents.xml file |
+| ex_0d996p_year50R | 0.996^(2050-year) if Year > 2020: 0.901037361 | | ex_1d0023p_year99 | 1.0023^(year-1899) |
+| ex_1d0024p_year99 | 1.0024^(year-1899) | | ex_1d003p_year99 | 1.003^(year-1899) |
+| ex_1d0035p_year99 | 1.0035^(year-1899) | | ex_1d004p_year99 | 1.004^(year-1899) |
+| ex_1d005p_year99 | 1.005^(year-1899) | | ex_1d0051p_year99 | 1.0051^(year-1899) |
+| ex_1d006p_year99 | 1.006^(year-1899) | | ex_1d007p_year99 | 1.007^(year-1899) |
+| ex_1d008p_year99 | 1.008^(year-1899) | | ex_1d01p_year99 | 1.01^(year-1899) |
+| ex_1d025p_year99 | 1.025^(year-1899) | | ex_1d03p_year99 | 1.03^(year-1899) |
+| ex_1d033p_year99 | 1.033^(year-1899) | | ex_1d035p_year99 | 1.035^(year-1899) |
+| ex_1d038p_year99 | 1.038^(year-1899) | | ex_1d039p_year99 | 1.039^(year-1899) |
+| ex_1d04p_year99 | 1.04^(year-1899) | | ex_1d05p_year99 | 1.05^(year-1899) |
+
+## Specs
+
+### Bore
+
+Value is in millimeters.
+
+Bore_mm = Value in the text box next to the slider.
+
+### Stroke
+
+Value is in millimeters.
+
+Stroke_mm = Value in the text box next to the slider.
+
+### Displacement
+
+Value is in Cubic Centimeters (cc)
+
+Displacement_CC = (0.7854 * ((Bore_mm/10) * (Bore_mm/10)) * (Stroke_mm/10) * SubComponent_Cylinders_CylinderCount)
+
+### Torque
+
+Value is in lb-ft.
+
+Torque = 10 + (Marq_DesignEngineSkill/20.0) + 
+ ((((25) * ((Slider_Performance_Torque - 0.4)*1.5)*ex_1d01p_year99) +
+ ((4*(SubComponent_Layout_Length + SubComponent_Layout_Width) )*ex_1d005p_year99) - 
+ (14 * (Slider_Performance_FuelEconomy+Slider_DesignFocus_FuelEconomy) * ex_1d004p_year99) +
+ (SubComponent_Layout_PowerRatings*5 + SubComponent_Cylinders_PowerRating*13 +
+ SubComponent_FuelType_PowerRating*24 + 100*SubComponent_Induction_PowerRating +
+ (5 * ex_1d004p_year99 * Slider_DesignFocus_Performance) +
+ 8*(Slider_Technology_Components+Slider_Technology_Materials + 
+ Slider_Technology_Technologies +Slider_Technology_Techniques))*ex_1d0024p_year99))
+ 
+Torque = Torque * ((SubComponent_Cylinders_CylinderCount * Stroke_mm*0.93 * Bore_mm*0.9)*0.000027)+5 
+ 
+if year < 2050 then:
+ Torque = Torque * ex_0d996p_year50R
+ 
+Torque = Torque * SubComponent_Valve_PowerRating
+
+### RPM
+
+tmpAY = AdjustedYear
+ 
+if tmpAY > 80 then:
+ tmpAY = 80 + ((AdjustedYear-80)/5)
+ 
+ 
+rpm = ((((tmpAY^4)*0.00000420875) - 
+ ((19*(tmpAY^3))*0.00016835) + ((427*(tmpAY^2))*0.00126) +
+ ((1315*(tmpAY))*0.01515) + 620 ) + (265 * ex_1d01p_year99 * Slider_DesignFocus_Performance) +
+ (465 * ex_1d0105p_year99 * (Slider_Performance_Revolutions*5.5)) -
+ (10 * ex_1d01p_year99 * SubComponent_Induction_PowerRating) +
+ (55 * ex_1d005p_year99 * (1-Slider_Layout_Weight)) - (30* ex_1d005p_year99 *
+ (Slider_DesignFocus_FuelEconomy + Slider_Performance_FuelEconomy))+ 
+ (25 * ex_1d01p_year99 * Slider_Technology_Components) + 
+ (25 * ex_1d01p_year99 * Slider_Technology_Materials) + 
+ (25 * ex_1d01p_year99 * Slider_Technology_Technologies)) * 
+ SubComponent_FuelType_RPM
+ 
+ 
+rpm = rpm * SubComponent_Valve_RPM
+ 
+rpm = rpm - ((rpm/1.5) * (Stroke_mm/221.136364))
+ 
+if rpm < 25 then:
+ rpm = 25
+
+### Horsepower
+
+Values are in HP.
+
+hp = (Torque * rpm) / 5252
+
+### Length
+
+Values are in inches.
+
+#### SubComponent_Layout_CylinderLengthArrangment Equals 1
+
+Length = (3 + (Displacement_CC/((47.3)+277))) * SubComponent_Layout_Length +
+ ((SubComponent_Cylinders_CylinderCount)*(Bore_mm/130.0)) +
+ (SubComponent_Cylinders_CylinderCount+(5*(Bore_mm/130.0))+
+ 2*SubComponent_Valve_Size)
+ 
+Length = Length + (0.16 * Length * Slider_Layout_Length)
+
+#### SubComponent_Layout_CylinderLengthArrangment Equals -1 Or Less
+
+Bank = SubComponent_Layout_CylinderLengthArrangment * -1
+ 
+Length = 3+(0.039 * (Bore_mm * 2)) + 5 * Slider_Layout_Length
+ 
+Length = Length * Bank
+
+#### SubComponent_Layout_CylinderLengthArrangment Equals Any Other Value
+
+Banks = 0.5;
+ 
+if SubComponent_Layout_CylinderLengthArrangment > 0
+ Banks = 1.0/SubComponent_Layout_CylinderLengthArrangment
+ 
+Length = (4 + ((Displacement_CC*(Banks*2))/((47.3)+277))) * 
+ SubComponent_Layout_Length + ((SubComponent_Cylinders_CylinderCount*Banks)*
+ (Bore_mm/130.0)) + ((SubComponent_Cylinders_CylinderCount*(Banks*2))+
+ (5*(Bore_mm/130.0))+2*SubComponent_Valve_Size)
+ 
+ 
+Length = Length + (0.16 * Length * Slider_Layout_Length);
+
+### Width
+
+Values are in inches.
+
+Width = (6 + (Displacement_CC/((57.3)+302))) * SubComponent_Layout_Width + 
+ ((6*(Bore_mm/115.0))+5*SubComponent_Valve_Size)
+ 
+Width = Width + (0.16 * Width * Slider_Layout_Width)
+ 
+if(SubComponent_Layout_CylinderLengthArrangment < -1)
+{
+ Bank = 1/(SubComponent_Layout_CylinderLengthArrangment * -1)
+ Width = Width * Bank
+}
+
+### Weight
+
+Values are in lbs.
+
+Weight = 30 + (55*((SubComponent_Valve_Weight+ SubComponent_Layout_Weight + 
+ SubComponent_FuelType_Weight + SubComponent_Induction_Weight + 
+ SubComponent_Cylinders_Weight)/5.0) ) + (100*(Stroke_mm/80.0)) + 
+ (((Length*1.95*Width)/80.0) + 
+ ( 40 + (42 * (((Slider_Layout_Width+Slider_Layout_Length)/2.0)+0.05)) + 
+ ((15+(15*(SubComponent_Valve_Weight+ SubComponent_Layout_Weight + 
+ SubComponent_FuelType_Weight + SubComponent_Induction_Weight + 
+ SubComponent_Cylinders_Weight)/5.0 ) ) * (Slider_Layout_Weight + 0.1)) - 
+ (15 * Slider_Technology_Materials) + (5 * SubComponent_Induction_Weight)+
+ (8*(Slider_Layout_Width+Slider_Layout_Length)) ) * 
+ ((Length*1.78*Width)/800.0)) + 
+ ((5+(5*SubComponent_Cylinders_Weight))*(SubComponent_Cylinders_CylinderCount))
+ 
+if(SubComponent_Layout_CylinderLengthArrangment > 2)
+ Weight = Weight * (SubComponent_Layout_CylinderLengthArrangment/2.9)
+
+### Fuel Consumption
+
+Values are in miles per gallon.
+
+FuelConsumption_MPG = 95 + ((55 * ex_1d0023p_year99) * (Slider_Performance_FuelEconomy+0.1)) +
+ (40 * ex_1d0023p_year99 * Slider_DesignFocus_FuelEconomy )
+ 
+ 
+FuelConsumption_MPG = FuelConsumption_MPG +
+ (12 * ex_1d0023p_year99*SubComponent_FuelType_FuelRating) + 
+ (7 * ex_1d0023p_year99*Slider_Technology_Technologies)
+ 
+FuelConsumption_MPG = FuelConsumption_MPG - (15 * ex_1d0051p_year99 * 
+ (Slider_Performance_Torque + Slider_Performance_Revolutions + Slider_DesignFocus_Performance)) - 
+ (20 * Slider_Layout_Displacement)+(10*SubComponent_Valve_FuelRating)
+ 
+FuelConsumption_MPG = (FuelConsumption_MPG + (6*SubComponent_Cylinders_FuelRating)+
+ (6*SubComponent_Layout_FuelRatings))*SubComponent_Induction_FuelRating + 
+ (Marq_DesignEngineSkill/50.0)
+ 
+if( (1.5+Displacement_CC/350.0) > 0 )
+ FuelConsumption_MPG = FuelConsumption_MPG/(1.5+Displacement_CC/350.0)
+ 
+FuelConsumption_MPG = FuelConsumption_MPG + 5
+ 
+ 
+if( FuelConsumption_MPG < 1 )
+ FuelConsumption_MPG = 1;
+ 
+if( SubComponent_FuelType_FuelRating < 5 AND FuelConsumption_MPG > 30)
+{
+ if( SubComponent_FuelType_FuelRating > 1.5 AND 
+ FuelConsumption_MPG > (30+(SubComponent_FuelType_FuelRating*2.0)) )
+ {
+ FuelConsumption_MPG = FuelConsumption_MPG + 
+ -FuelConsumption_MPG^0.85+18+(SubComponent_FuelType_FuelRating*2.0)
+ }
+ else
+ {
+ FuelConsumption_MPG = FuelConsumption_MPG + -FuelConsumption_MPG^0.85+18 
+ }
+}
+
+## Ratings
+
+### Design Requirements
+
+Design_Requirements = (5 * Slider_DesignFocus_Dependability) + 
+ (5 * Slider_DesignFocus_FuelEconomy) +
+ (5 * Slider_DesignFocus_Performance) + (3 * Slider_Performance_Revolutions) + 
+ (2 * Slider_Performance_FuelEconomy) + (2 * Slider_Performance_Torque) + 
+ (2 * Slider_Technology_Technologies) + (1-Slider_Layout_Weight) + 
+ (Slider_Layout_Displacement + (1-Slider_Layout_Length + 
+ (1-Slider_Layout_Width))) - (2 * Slider_Technology_Techniques)
+ 
+Design_Requirements = Design_Requirements + (SubComponent_Cylinders_DesignRequire) +
+ (SubComponent_FuelType_DesignRequirements) + (SubComponent_Valve_DesignRequirements) +
+ (5 * SubComponent_Induction_DesignRequirements) +
+ (3* SubComponent_Layout_DesignRequirements)
+ 
+Design_Requirements = 2.7027 * Design_Requirements
+
+### Manufacturing Requirements
+
+Manufacturing_Requirements = (Slider_Layout_Displacement ) + (2*(1-Slider_Layout_Length)) +
+ (2*(1-Slider_Layout_Width)) + (Slider_Performance_FuelEconomy) + 
+ (Slider_Performance_Revolutions * 2) + (2 * Slider_Performance_Torque) + 
+ (Slider_Technology_Components + Slider_Technology_Materials +
+ Slider_Technology_Technologies + (3 * Slider_Technology_Techniques))
+ 
+Manufacturing_Requirements = Manufacturing_Requirements + 
+ (3 * SubComponent_Cylinders_ManufacturingRequire) +
+ ( 3 * SubComponent_Layout_ManufacturingRequirements) + 
+ ( 2 * SubComponent_Induction_ManufacturingRequirements) +
+ (SubComponent_FuelType_ManufacturingRequirements) +
+ ( 2 * SubComponent_Valve_ManufacturingRequirements)
+ 
+ 
+Manufacturing_Requirements = Manufacturing_Requirements * 3.7037
+
+### Power Ratings
+
+if( SubComponent_Cylinders_CylinderCount > 0 )
+ Power_Rating = Torque / ( (100 * ex_1d007p_year99) * SubComponent_Cylinders_CylinderCount / 2.2 )
+ 
+Power_Rating = Power_Rating * 50
+ 
+if( Power_Rating > 50 )
+ Power_Rating = 50
+ 
+Power_Rating = Power_Rating + ( 50 * ( Torque/2000.0 ) )
+ 
+if( Power_Rating > 100 )
+ Power_Rating = 100
+
+### Fuel Economy Rating
+
+FuelEconomy_Rating = (FuelConsumption_MPG / 120.0)* 100;
+ 
+if(FuelEconomy_Rating >100)
+ FuelEconomy_Rating = 100;
+
+### Reliability
+
+Reliability_Rating = (6 * Slider_DesignFocus_Dependability) + 
+ (3* (1-Slider_DesignFocus_Performance)) + (5*(1-(rpm/10000.0))) +
+ (2*1-Slider_Performance_Torque) + (3*1-Slider_Performance_Revolutions) + 
+ (3 * Slider_Technology_Components) + (2 * Slider_Technology_Materials) + 
+ (1-Slider_Technology_Technologies) + (Slider_Technology_Techniques)
+ 
+ 
+Reliability_Rating = Reliability_Rating + (1 * SubComponent_Cylinders_ReliabilityRating) + 
+ (1 * SubComponent_FuelType_ReliabilityRating) + 
+ (1 * (1-SubComponent_Induction_ReliabilityRating)) + 
+ (1 * SubComponent_Layout_Reliability) + 
+ (2*SubComponent_Valve_ReliabilityRating)
+ 
+Reliability_Rating = Reliability_Rating + (8 * (1-(Stroke_mm/150.0)))
+ 
+Reliability_Rating = Reliability_Rating / 4.5
+ 
+Reliability_Rating = Reliability_Rating * 10
+ 
+Reliability_Rating = Reliability_Rating + (Marq_DesignEngineSkill/10.0)
+ 
+ 
+if(Reliability_Rating<0)
+ Reliability_Rating = 0
+ 
+if(Reliability_Rating>100)
+ Reliability_Rating = 100
+
+### Smoothness
+
+Smoothness_Rating = (-(1.0/10.0)*((SubComponent_Cylinders_CylinderCount-8) * 
+ (SubComponent_Cylinders_CylinderCount-8))+5)
+ 
+Smoothness_Rating = Smoothness_Rating + (SubComponent_Cylinders_SmoothnessRating * 2) + 
+ (SubComponent_FuelType_SmoothnessRating * 2) + (SubComponent_Layout_Smoothness*2) +
+ (Slider_Technology_Components * 3) + (Slider_Technology_Technologies * 2) + 
+ (Slider_Technology_Techniques * 3) + (SubComponent_Valve_SmoothnessRating*2) + 
+ (Marq_DesignEngineSkill/25)
+ 
+Smoothness_Rating = Smoothness_Rating * 4
+ 
+if( Smoothness_Rating > 100 )
+ Smoothness_Rating = 100
+ 
+if(Smoothness_Rating < 1 )
+ Smoothness_Rating = 1;
+
+### Overall
+
+Overall_Rating = (Reliability_Rating + FuelEconomy_Rating + Power_Rating + 
+ Smoothness_Rating + (Marq_DesignEngineSkill))/5
+ 
+Overall_Rating = Overall_Rating + (5*PreResearchEngineAmountEffect)
+ 
+if(Overall_Rating > 100)
+ Overall_Rating = 100
+
+## Miscellaneous
+
+### Unit Costs
+
+Unit_Costs =((((((70* ex_1d01p_year99 * (((1-Slider_Layout_Length) + (1-Slider_Layout_Width))/2.0)) +
+ (220 * ex_1d004p_year99 * (((0.25+(Slider_Performance_Revolutions * 
+ Slider_Performance_Revolutions) + (Slider_Performance_Torque * Slider_Performance_Torque))/2.0) -
+ (0.5-(Slider_Performance_FuelEconomy*Slider_Performance_FuelEconomy)) ) ) +
+ (60 * ex_1d01p_year99) * ((Slider_Performance_Revolutions * Slider_Performance_Revolutions) +
+ (Slider_Performance_Torque * Slider_Performance_Torque)) +
+ 220 * ex_1d008p_year99*(0.1+(((Slider_Technology_Materials*Slider_Technology_Materials)+
+ (Slider_Technology_Techniques*Slider_Technology_Techniques ) + 
+ (Slider_Technology_Components*Slider_Technology_Components))) ) +
+ 170 * ex_1d008p_year99*(Slider_Technology_Technologies*Slider_Technology_Technologies) +
+ 50 * ex_1d0035p_year99 * (Slider_DesignFocus_Dependability * Slider_DesignFocus_Dependability) +
+ 180 * ex_1d0035p_year99 * (Slider_DesignFocus_Performance * Slider_DesignFocus_Performance )+
+ (260 * ex_1d006p_year99 * (2.168 * Slider_Layout_Displacement^1.5 -4.44 * Slider_Layout_Displacement^3 +
+ 2.646 * Slider_Layout_Displacement^4.5 + 3.126 * Slider_Layout_Displacement^6 )+
+ (70 * ex_1d005p_year99 * (SubComponent_Cylinders_CylinderCount/6.0) + 
+ (.75 + Slider_Layout_Displacement^1.5) - (Slider_Layout_Weight^2)) + 10 * 
+ (Slider_DesignFocus_FuelEconomy^2) - 50 ) * ex_1d003p_year99 + 
+ (160 * SubComponent_Cylinders_UnitCosts)^ex_1d003p_year99 +
+ (120 * SubComponent_Layout_UnitCosts)^ex_1d004p_year99 +
+ (140 * SubComponent_Valve_UnitCosts)^ex_1d004p_year99 +
+ (435 * SubComponent_Induction_UnitCosts)^ex_1d004p_year99 +
+ (120 * SubComponent_FuelType_UnitCosts)^ex_1d004p_year99) * 
+ (.125 + 0.12 * SubComponent_Cylinders_CylinderCount)) * 
+ (Global_Interest_Rate/2.0)) + 50) * carPriceRate) * (designRandomVal);
+ 
+Hyper_Sliders = ((Slider_Layout_Displacement*2 + (1-Slider_Layout_Length) + 
+ (1-Slider_Layout_Width) + (1-Slider_Layout_Weight)) +
+ (Slider_Performance_Revolutions + Slider_Performance_Torque + Slider_Performance_FuelEconomy) +
+ (Slider_DesignFocus_Performance + Slider_DesignFocus_FuelEconomy + Slider_DesignFocus_Dependability) +
+ (Slider_Technology_Materials + Slider_Technology_Components + Slider_Technology_Techniques +
+ Slider_Technology_Technologies))/13.0;
+ 
+Hyper_Costs = 475 * ex_1d04p_year99 * (Hyper_Sliders*Hyper_Sliders*Hyper_Sliders*Hyper_Sliders);
+ 
+ 
+Unit_Costs = Unit_Costs + Hyper_Costs - ((Unit_Costs/10) * (Marq_DesignEngineSkill/100));
+ 
+
+### Design Costs
+
+Design_Costs = (((18000 * ( 0.05+Slider_Layout_Displacement^1.5 ) *ex_1d025p_year99 +
+ (4000 * (1-(Slider_Layout_Weight*Slider_Layout_Weight)) *ex_1d033p_year99) +
+ 5000 * (0.15+(Slider_Technology_Materials * Slider_Technology_Materials ) + 
+ (Slider_Technology_Techniques * Slider_Technology_Techniques ) + 
+ (Slider_Technology_Components * Slider_Technology_Components))^ 
+ (0.1 + (Slider_DesignFocus_Performance * Slider_DesignFocus_Performance) + 
+ (Slider_DesignFocus_Dependability * Slider_DesignFocus_Dependability) + 
+ (Slider_DesignFocus_FuelEconomy * Slider_DesignFocus_FuelEconomy)) *
+ ex_1d033p_year99+2500*((1.01 - Slider_Layout_Weight)*(1.01-Slider_Layout_Weight)) * ex_1d033p_year99 -
+ 2500 * ex_1d033p_year99 * ((1-Slider_Layout_Width)+ (1-Slider_Layout_Length)) +
+ 12000 * (0.2+(Slider_DesignFocus_Performance*Slider_DesignFocus_Performance) +
+ (Slider_DesignFocus_FuelEconomy*Slider_DesignFocus_FuelEconomy)) * 
+ ex_1d05p_year99 +1500*(3.5+ (Slider_DesignFocus_Dependability*Slider_DesignFocus_Dependability)) *
+ ex_1d039p_year99)*ex_1d03p_year99 +
+ (4000 * ((Slider_Performance_FuelEconomy *Slider_Performance_FuelEconomy ) + 
+ (Slider_Performance_Revolutions * Slider_Performance_Revolutions ) + 
+ (Slider_Performance_Torque*Slider_Performance_Torque)) * ex_1d038p_year99) +
+ (3000 * (Slider_Technology_Technologies * Slider_Technology_Technologies) * ex_1d035p_year99) +
+ (Hyper_Costs * (500*ex_1d035p_year99)) +
+ ((95 * SubComponent_Cylinders_DesignCosts)^ex_1d01p_year99) +
+ ((115 * SubComponent_Layout_DesignCosts)^ex_1d01p_year99) +
+ ((195* SubComponent_Induction_DesignCosts)^ex_1d01p_year99) +
+ ((90* SubComponent_Valve_UnitCosts)^ex_1d01p_year99) +
+ ((90 * SubComponent_FuelType_DesignCosts)^ex_1d01p_year99) * 
+ (Global_Interest_Rate)) * ex_1d003p_year99)
+ 
+ 
+if(year > 1910 && year < 1930)
+ Design_Costs = Design_Costs * (SubComponent_Cylinders_CylinderCount*(1 - 0.0375 * (year-1910)))
+else if(year > 1930 && year < 1950)
+ Design_Costs = Design_Costs * (SubComponent_Cylinders_CylinderCount*(0.25 - ( 0.005 * (year-1930) )))
+else if( year > 1950 )
+ Design_Costs = Design_Costs * (SubComponent_Cylinders_CylinderCount * 0.15);
+ 
+ 
+Design_Costs = (Design_Costs * 0.85) + ((Design_Costs *0.15 ) * SubComponent_Cylinders_DesignCosts)
+ 
+ 
+Design_Costs = (Design_Costs/5)+(Design_Costs*(Slider_DesignFocus_DesignPace*Slider_DesignFocus_DesignPace*4.5))
+
+### Finish Time
+
+Finish_Time = (((0.55 * Slider_Layout_Displacement) + (1- Slider_Layout_Weight) +
+ 0.45 * (Slider_Performance_Revolutions + Slider_Performance_Torque + Slider_Performance_FuelEconomy) +
+ 0.45 * (Slider_DesignFocus_Dependability + Slider_DesignFocus_FuelEconomy + 
+ Slider_DesignFocus_Performance))*ex_1d004p_year99 + (SubComponent_Cylinders_FinishTime) +
+ (SubComponent_Layout_FinishTime) + (.75 * SubComponent_Induction_FinishTime) + 
+ (.55 * SubComponent_FuelType_FinishTime)) + SubComponent_Valve_FinishTime + 1-
+ (2*(FactOverallVAL/100.0))+ (1.15*ex_1d003p_year99*Hyper_Sliders)
+ 
+Finish_Time = Finish_Time + ((year-1850)/50)
+ 
+additionalTime = 0;
+ 
+if(year < 2021)
+{
+ if(( Slider_DesignFocus_DesignPace + 0.05 ) > 0)
+ additionalTime = ( ((year-1840)/15.0 ) *((0.5/( Slider_DesignFocus_DesignPace+0.05) ) - 0.45) )
+ else
+ additionalTime = ( ((year-1840)/15.0 ) *((0.5/(0.05) ) -0.45) )
+ 
+}
+else
+{
+ if(( Slider_DesignFocus_DesignPace+0.05) > 0)
+ additionalTime = ( ((2020-1840)/15.0 ) *((0.5/( Slider_DesignFocus_DesignPace+0.05) ) - 0.45) )
+ else
+ additionalTime = ( ((2020-1840)/15.0 ) *((0.5/(0.05) ) -0.45) )
+}
+ 
+if(Slider_DesignFocus_DesignPace < 0.5)
+{
+ Finish_Time = Finish_Time + additionalTime
+}
+else
+{
+ turnsOff = (Slider_DesignFocus_DesignPace - 0.5)/0.20
+ Finish_Time = Finish_Time + (additionalTime - turnsOff)
+}
+ 
+if(Finish_Time < 1)
+ Finish_Time = 1
+
+### Employees Required
+
+if(year < 2021)
+ Engineers_Required = Design_Requirements * (0.11833*(year-1899)+0.275);
+else
+ Engineers_Required = Design_Requirements * (0.11833*(121)+0.275);
+ 
+ 
+Engineers_Required = Engineers_Required/5 + ((Engineers_Required/1.2)*
+ Slider_DesignFocus_DesignPace) + 3;

@@ -1,0 +1,268 @@
+# Gearbox Game Mechanics
+
+The Game Mechanics section of the manual details the internal formula used in the game's calculations. This section of the manual uses pseudo-code and may not be 100% the same as the code in the game. 
+
+The Game Mechanics part of the manual is mainly designed to be a reference for the frequently asked question, “Why do I get this rating when I do X, Y, Z?!” Usually, this answer involves many different variables, which this section of the manual demonstrates. 
+
+The game mechanics section of the manual shows how the sausage gets made. So you really may want to avoid this portion of the manual if you enjoy the game.
+
+## Variables
+
+This is a table of variables and their descriptions used in the formulas.
+
+### Sliders
+
+| Variable | Description | | Variable | Description |
+| --- | --- | --- | --- | --- |
+| Sliders_LowGear_Ratio | Specifications ⇒ Low-End Gearing Slider | | Sliders_HighGear_Ratio | Specifications ⇒ High-End Gearing Slider |
+| Sliders_Torque_Max_Input | Specifications ⇒ Maximum Torque Input Slider | | Sliders_Tech_Material | Technologies ⇒ Material Quality Slider |
+| Sliders_Tech_Components | Technologies ⇒ Component Quality Slider | | Sliders_Tech_Technology | Technologies ⇒ Technology Slider |
+| Sliders_Tech_Techniques | Technologies ⇒ Manufacturing Techniques Slider | | Sliders_Design_Ease | Design Focus ⇒ Shifting Ease |
+| Sliders_Design_Dependability | Design Focus ⇒ Dependability | | Sliders_Design_DesignPace | Design Focus ⇒ Development Pace |
+| Sliders_Design_FuelEconomy | Design Focus ⇒ Fuel Economy | | Sliders_Design_Performance | Design Focus ⇒ Performance |
+
+### Sub-Components
+
+| Variable | Description | | Variable | Description |
+| --- | --- | --- | --- | --- |
+| Has_Limited_Slip | Specifications ⇒ Limited Slip Checkbox (If checked, Value is 1) | | Has_Overdrive | Specifications ⇒ Overdrive Checkbox (If checked, Value is 1) |
+| Has_Transaxle | Specifications ⇒ Transaxle Checkbox (If checked, Value is 1) | | Has_Reverse | Specifications ⇒ Reverse Gear Checkbox (If checked, Value is 1) |
+| Subcomponents_Gearbox_Weight | Gearbox Type Weight Value | | Subcomponents_Gearbox_Complexity | Gearbox Type Complexity Value |
+| Subcomponents_Gearbox_Smoothness | Gearbox Type Smoothness Value | | Subcomponents_Gearbox_Ease | Gearbox Type Ease Value |
+| Subcomponents_Gearbox_FuelRating | Gearbox Type Fuel Economy Value | | Subcomponents_Gearbox_PerformanceRating | Gearbox Type Performance Value |
+| Subcomponents_Gearbox_UnitCosts | Gearbox Type Unit Cost Value | | Subcomponents_Gearbox_DesignCosts | Gearbox Type Design Cost Value |
+| Number_Of_Gears | Selected Number of Gears | | | |
+
+### Global
+
+| Variable | Description | | Variable | Description |
+| --- | --- | --- | --- | --- |
+| year | Current game year | | ex_1d008p_year99 | 1.008^(year-1899) |
+| ex_1d003p_year99 | 1.003^(year-1899) | | ex_1d01p_year99 | 1.01^(year-1899) |
+| ex_1d014p_year99 | 1.014^(year-1899) | | ex_1d015p_year99 | 1.015^(year-1899) |
+| ex_1d017p_year99 | 1.017^(year-1899) | | ex_1d019p_year99 | 1.019^(year-1899) |
+| ex_1d02p_year99 | 1.02^(year-1899) | | ex_1d0225p_year99 | 1.0225^(year-1899) |
+| ex_1d027p_year99 | 1.027^(year-1899) | | Global_Interest_Rate | Global Interest Rates as defined in the TurnEvents.xml file |
+| carPriceRate | Global vehicle costs variable as defined in the TurnEvents.xml file | | designRandomVal | Random variation based on workmanship image/skill ratings. |
+| Marq_DesignGearboxSkill | Gearbox design skill of the selected marque | | PreResearchGearboxAmountEffect | Research team's bonus on gearbox design |
+
+## Specs
+
+### Maximum Torque Support
+
+Values are in lb-ft.
+
+Max_Torque_Support = 10 * Number_Of_Gears + 75 * (ex_1d0225p_year99) * 
+ Sliders_Torque_Max_Input + 35 * (ex_1d0225p_year99) * 
+ (1-Sliders_LowGear_Ratio) + 15 * (ex_1d0225p_year99) * 
+ (1-Sliders_HighGear_Ratio) + 5 * (ex_1d0225p_year99) * 
+ Sliders_Design_Dependability + 5 * (ex_1d0225p_year99) * 
+ Sliders_Tech_Components + 5 * (ex_1d0225p_year99) * Sliders_Tech_Components
+ 
+Max_Torque_Support = Max_Torque_Support + (Marq_DesignGearboxSkill/5.0)
+
+### Weight
+
+Values are in lbs.
+
+Weight = (20 + 15*(Number_Of_Gears+Has_Reverse) + 
+ 25*Subcomponents_Gearbox_Complexity+15*Has_Overdrive + 
+ 15*Has_Limited_Slip + 50 * Sliders_Torque_Max_Input - 
+ 50*Sliders_Design_Performance + 140 * Subcomponents_Gearbox_Weight + 
+ 30*(1-Sliders_Tech_Material))- 20 * Has_Transaxle;
+
+## Ratings
+
+### Power Rating
+
+Power_Rating = 100*(Max_Torque_Support/(80 + 150 * (ex_1d0225p_year99) +
+ 90 * (ex_1d0225p_year99)))
+ 
+if(Power_Rating>100)
+ Power_Rating = 100
+
+### Fuel Rating
+
+FuelEconomy_Rating = (15*Sliders_Design_FuelEconomy + 15 * Subcomponents_Gearbox_FuelRating +
+ 13 * (Sliders_LowGear_Ratio) + 10*Sliders_HighGear_Ratio + 
+ 5*(1-Sliders_Design_Performance) + 6 * Has_Overdrive + 
+ 2*Number_Of_Gears + 5 * Sliders_Tech_Components + 
+ 6 * Sliders_Tech_Material + 6 * Sliders_Tech_Technology)
+ 
+FuelEconomy_Rating = FuelEconomy_Rating + (Marq_DesignGearboxSkill/10.0)
+ 
+if(FuelEconomy_Rating>100)
+ FuelEconomy_Rating = 100;
+
+### Performance Rating
+
+Performance_Rating = 10 * Sliders_Design_Performance + 
+ 13 * Subcomponents_Gearbox_PerformanceRating + 2*Number_Of_Gears + 
+ 7 * Sliders_Tech_Technology +6 * Sliders_Tech_Material + 
+ 7 * Sliders_Tech_Components + 6 * Sliders_Tech_Techniques + 
+ 15 * (1-Sliders_LowGear_Ratio) + 10 * Sliders_HighGear_Ratio + 
+ 4 * Has_Limited_Slip+2*Has_Transaxle
+ 
+Performance_Rating = Performance_Rating + (Marq_DesignGearboxSkill/10.0)
+ 
+if(Performance_Rating>100)
+{
+ Performance_Rating = 100;
+}
+
+### Reliability Rating
+
+Reliability_Rating = 20 * std::abs((1.0-Subcomponents_Gearbox_Complexity)) + 
+ 15 * Sliders_Torque_Max_Input - (Number_Of_Gears+Has_Reverse) +
+ 10*Sliders_Tech_Material + 10*Sliders_Tech_Components + 
+ 10 * Sliders_Design_Dependability + 5 * (1-Subcomponents_Gearbox_Complexity) +
+ 5 * (1-Sliders_Design_Ease) + 5 * std::abs(Has_Limited_Slip-1) +
+ 5 * std::abs(Has_Overdrive-1) + 5 * std::abs(Has_Transaxle-1) +
+ 10 *(1-Sliders_Tech_Technology)
+ 
+Reliability_Rating = Reliability_Rating + (Marq_DesignGearboxSkill/10.0)
+ 
+if(Reliability_Rating > 100)
+{
+ Reliability_Rating = 100
+}
+
+### Comfort Rating
+
+Comfort_Rating = 10 * Has_Limited_Slip + 10 * Has_Reverse + 
+ 40 * Sliders_Design_Ease + 20 * Subcomponents_Gearbox_Ease +
+ 20 * Subcomponents_Gearbox_Smoothness
+ 
+Comfort_Rating = Comfort_Rating + (Marq_DesignGearboxSkill/10.0)
+ 
+if(Comfort_Rating> 100)
+{
+ Comfort_Rating = 100;
+}
+
+### Overall Rating
+
+Overall_Rating = (Power_Rating+FuelEconomy_Rating+Performance_Rating+
+ Reliability_Rating +Comfort_Rating +Marq_DesignGearboxSkill )/6
+ 
+Overall_Rating = Overall_Rating + (2.5*PreResearchGearboxAmountEffect);
+ 
+if(Overall_Rating > 100)
+{
+ Overall_Rating = 100;
+}
+
+### Manufacturing Requirements
+
+Manufacturing_Req = (10*((Number_Of_Gears+Has_Reverse)/6.0)+20*Subcomponents_Gearbox_Complexity+
+ 15*Sliders_Torque_Max_Input+5*Has_Overdrive + 5 * Has_Transaxle + 
+ 5 * Has_Limited_Slip + 7 * Sliders_Tech_Techniques +
+ 13 * Sliders_Design_Dependability + 5 * 
+ ((Sliders_Design_Ease + Sliders_Design_FuelEconomy + 
+ Sliders_Design_Performance)/3.0) + 5 * ((Subcomponents_Gearbox_Ease + 
+ Subcomponents_Gearbox_FuelRating+ Subcomponents_Gearbox_PerformanceRating +
+ Subcomponents_Gearbox_Smoothness)/4.0)) + 10 * 
+ ((Sliders_Tech_Material + Sliders_Tech_Components + Sliders_Tech_Technology)/3.0)
+
+### Design Requirements
+
+Design_Req = (9*((Number_Of_Gears+Has_Reverse)/6.0)+
+ 7*Subcomponents_Gearbox_Complexity+ 3 * Has_Overdrive + 3*Has_Limited_Slip+
+ 3*Sliders_Tech_Technology + 3 * Subcomponents_Gearbox_PerformanceRating + 
+ 3 *Subcomponents_Gearbox_FuelRating+ 3 * Subcomponents_Gearbox_Ease+ 3 * 
+ Subcomponents_Gearbox_Smoothness+ 3 * Sliders_Tech_Material + 2 * 
+ Sliders_Tech_Components + 3*Sliders_Torque_Max_Input+ 11 * Sliders_Design_Ease +
+ 14 * Sliders_Design_Dependability + 15 * Sliders_Design_FuelEconomy + 
+ 15 * Sliders_Design_Performance)
+
+## Miscellaneous
+
+### Unit Costs
+
+Unit_Costs = ((((20*ex_1d01p_year99 + 40 * ex_1d02p_year99 * (Number_Of_Gears + Has_Reverse) +
+ 60 * ex_1d008p_year99 * Subcomponents_Gearbox_Complexity +
+ 15 * ex_1d008p_year99 * Has_Overdrive + 65 * ex_1d008p_year99 * Has_Transaxle +
+ 55 * ex_1d008p_year99 * Has_Limited_Slip +
+ 20*ex_1d02p_year99*(Sliders_Design_Performance *Sliders_Design_Performance ) +
+ 25*ex_1d02p_year99*(Sliders_Design_FuelEconomy * Sliders_Design_FuelEconomy )+
+ 20*ex_1d02p_year99*(Sliders_Design_Ease *Sliders_Design_Ease )+
+ 45*ex_1d02p_year99*(Sliders_Design_Dependability*Sliders_Design_Dependability) +
+ (80* ex_1d02p_year99* Subcomponents_Gearbox_UnitCosts) +
+ 30 * ex_1d015p_year99 * (Sliders_Torque_Max_Input * Sliders_Torque_Max_Input) +
+ 40 * ex_1d02p_year99 * (0.5 + (Sliders_Tech_Technology*Sliders_Tech_Technology)) + 
+ 55 * ex_1d015p_year99 * ((Sliders_Tech_Material * Sliders_Tech_Material) +
+ (Sliders_Tech_Components * Sliders_Tech_Components ) + 
+ (Sliders_Tech_Techniques*Sliders_Tech_Techniques)) * 
+ ex_1d01p_year99)*(Global_Interest_Rate/2.1))) * carPriceRate) * (designRandomVal)
+ 
+hyperSliders = ((Sliders_Tech_Material + Sliders_Tech_Components + 
+ Sliders_Tech_Techniques + Sliders_Tech_Technology) + 
+ (Sliders_Torque_Max_Input * Sliders_Torque_Max_Input) +
+ (Sliders_Design_Performance + Sliders_Design_FuelEconomy +
+ Sliders_Design_Dependability + Sliders_Design_Ease))/9.0
+ 
+ 
+ 
+hyperCosts = 500 * ex_1d04p_year99 * hyperSliders^4
+ 
+ 
+Unit_Costs = Unit_Costs + hyperCosts - ((Unit_Costs/10) * (Marq_DesignGearboxSkill/100))
+
+### Design Costs
+
+designcost = ((6000*ex_1d017p_year99+250*ex_1d017p_year99 * 
+ (Number_Of_Gears+Has_Reverse)+5000*ex_1d017p_year99*Subcomponents_Gearbox_Complexity+
+ (hyperCosts * (100*ex_1d027p_year99)) +
+ 2000*ex_1d014p_year99*(Sliders_Torque_Max_Input*Sliders_Torque_Max_Input)+2000 *
+ ex_1d014p_year99*Has_Transaxle+2000*ex_1d017p_year99*Has_Overdrive +
+ 2500*ex_1d019p_year99*Has_Limited_Slip+2500*ex_1d014p_year99*
+ (0.5+(Sliders_Tech_Technology*Sliders_Tech_Technology))+
+ 2500*ex_1d014p_year99*(Sliders_Design_Performance *Sliders_Design_Performance ) +
+ 3500*ex_1d014p_year99*(Sliders_Design_FuelEconomy * Sliders_Design_FuelEconomy )+
+ 4000*ex_1d014p_year99*(Sliders_Design_Ease *Sliders_Design_Ease )+
+ 8000*ex_1d014p_year99*(Sliders_Design_Dependability*Sliders_Design_Dependability)+
+ 2200*ex_1d014p_year99*(Sliders_Tech_Techniques *Sliders_Tech_Techniques )+
+ 2200*ex_1d014p_year99*(Sliders_Tech_Material * Sliders_Tech_Material ))*
+ ex_1d014p_year99) * Number_Of_Gears
+ 
+designcost = (designcost/5)+(designcost*
+ (Sliders_Design_DesignPace*Sliders_Design_DesignPace*4.5))
+
+### Finish Time
+
+Finish_Time = (3 + 0.35*Number_Of_Gears+1.5*Subcomponents_Gearbox_Complexity+
+ Has_Transaxle+0.35*Has_Overdrive+0.35*Has_Limited_Slip +
+ 0.35*(Sliders_Design_Ease + Sliders_Design_Dependability + 
+ Sliders_Design_FuelEconomy + Sliders_Design_Performance) +
+ 0.35 * (Subcomponents_Gearbox_Ease + Subcomponents_Gearbox_FuelRating + 
+ Subcomponents_Gearbox_PerformanceRating + Subcomponents_Gearbox_Smoothness) +
+ 0.55 * (Sliders_Tech_Material + Sliders_Tech_Components + 
+ Sliders_Tech_Technology + Sliders_Tech_Techniques))-
+ (2*(FactOverallVAL/100.0))+ (1.15*ex_1d003p_year99*hyperSliders)
+ 
+ 
+if(year < 2020)
+ additionalTime = ( ((year-1840)/15.0 ) *((0.5/( Sliders_Design_DesignPace+0.05) ) -0.45) )
+else
+ additionalTime = ( ((2020-1840)/15.0 ) *((0.5/( Sliders_Design_DesignPace+0.05) ) -0.45) )
+ 
+ 
+if(Sliders_Design_DesignPace < 0.5)
+ Finish_Time = Finish_Time + additionalTime
+else
+{
+ turnsOff = (Sliders_Design_DesignPace - 0.5)/0.20;
+ Finish_Time = Finish_Time + (additionalTime - turnsOff)
+}
+ 
+if(Finish_Time < 1)
+ Finish_Time = 1
+
+### Employees Required
+
+if(year < 2021)
+ Employees_Required = Design_Req * (0.07833*(year-1899)+0.275);
+else
+ Employees_Required = Design_Req * (0.07833*(121)+0.275);
+ 
+Employees_Required = Employees_Required /5 + ((Employees_Required/1.2)*Sliders_Design_DesignPace) + 2;

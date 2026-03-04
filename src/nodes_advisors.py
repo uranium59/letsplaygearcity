@@ -1,21 +1,49 @@
 """
 GearCity Advisor Nodes — 전문 자문 노드
 ========================================
-design_advisor, forecast_advisor
+design_advisor (다단계 증거 기반 추론), forecast_advisor
 """
 
+import json
+import re
 import sqlite3
+import sys
 from pathlib import Path
 
 import pandas as pd
+from langchain_core.messages import SystemMessage, HumanMessage
 
 from src.graph_state import GraphState
-from src.prompts import DESIGN_ADVISOR_PROMPT, FORECAST_ADVISOR_PROMPT
+from src.prompts import (
+    DESIGN_GOAL_PROMPT,
+    DESIGN_STAGE_ENGINE_PROMPT,
+    DESIGN_STAGE_CHASSIS_PROMPT,
+    DESIGN_STAGE_GEARBOX_PROMPT,
+    DESIGN_STAGE_VEHICLE_PROMPT,
+    DESIGN_SUMMARY_PROMPT,
+    FORECAST_ADVISOR_PROMPT,
+)
 from src.queries import (
     DESIGN_VEHICLE_SQL, CURRENT_YEAR_SQL, CURRENT_TURN_SQL,
     TECH_SKILL_SQL, AVAILABLE_COMPONENTS_SQL_TEMPLATE, PLAYER_CITY_IDS_SQL,
+    ENGINE_SUB_COMPONENTS_SQL, CHASSIS_SUB_COMPONENTS_SQL,
 )
 from src.graph_utils import create_llm, strip_think_tags
+
+# ── 시스템 프롬프트: Qwen이 "엔진"을 게임엔진으로 오해하지 않도록 강력히 고정 ──
+DESIGN_SYSTEM_MESSAGE = """\
+You are an automotive engineer AI for GearCity, a car company management simulation game.
+Your ONLY job is designing AUTOMOBILE components: car engines, chassis, gearboxes, and vehicles.
+
+CRITICAL DEFINITIONS (절대 혼동 금지):
+- "엔진" / "engine" = 자동차 내연기관 (pistons, cylinders, bore, stroke, torque, HP)
+- "샤시" / "chassis" = 자동차 차체 프레임 (suspension, drivetrain, frame)
+- "기어박스" / "gearbox" = 자동차 변속기 (transmission, gears)
+- NEVER discuss game engines (Unity/Unreal/Godot), software engines, or anything unrelated to automobiles.
+
+You receive slider values (0.0~1.0) that control physical properties of car components.
+You receive evidence cards showing how each slider affects cost, performance, fuel economy, etc.
+You must output ONLY valid JSON with slider recommendations. No markdown fences, no explanation outside JSON."""
 from src.design_formulas import (
     EngineParams,
     VehicleParams,
@@ -26,10 +54,26 @@ from src.design_formulas import (
     simulate_bore_change,
     format_design_report,
     analyze_slider_health,
+    compute_slider_recommendations,
+    estimate_engine_full,
+    estimate_chassis_full,
+    estimate_gearbox_full,
+    compute_sensitivity,
+    format_evidence_cards,
+    verify_full_design,
+    ENGINE_SLIDER_KEYS,
+    CHASSIS_SLIDER_KEYS,
+    GEARBOX_SLIDER_KEYS,
+    VEHICLE_SLIDER_KEYS,
+    _s,
 )
 from src.event_timeline import get_timeline
 from src.session_memory import get_memory
 
+
+# ═══════════════════════════════════════════════════════════════════
+# 공용 데이터 수집 헬퍼
+# ═══════════════════════════════════════════════════════════════════
 
 def _fetch_vehicle_data(db_path: str) -> tuple[list[dict], str, int]:
     """Step 1: DB에서 차량+엔진+샤시+기어박스 JOIN + 현재 연도."""
@@ -108,7 +152,66 @@ def _fetch_tech_components(db_path: str, current_year: int) -> tuple[int, str]:
     return skill_rnd, tech_context
 
 
-# ── 위키 레퍼런스 로드 ──────────────────────────────────────────
+def _fetch_sub_components(db_path: str, rows: list[dict]) -> dict:
+    """차량별 엔진/샤시 서브컴포넌트 속성 조회.
+
+    Returns {Car_ID: {"engine_sub": {...}, "chassis_sub": {...}, "gearbox_sub": {...}}}
+    """
+    result = {}
+    if not rows:
+        return result
+
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+
+        for row in rows:
+            car_id = row.get("Car_ID", 0)
+            engine_id = row.get("Engine_ID", 0)
+            chassis_id = row.get("Chassis_ID", 0)
+
+            engine_sub = {}
+            try:
+                cursor = conn.execute(ENGINE_SUB_COMPONENTS_SQL, (engine_id,))
+                r = cursor.fetchone()
+                if r:
+                    engine_sub = {k: r[k] for k in r.keys() if r[k] is not None}
+            except Exception:
+                pass
+
+            chassis_sub = {}
+            try:
+                cursor = conn.execute(CHASSIS_SUB_COMPONENTS_SQL, (chassis_id,))
+                r = cursor.fetchone()
+                if r:
+                    chassis_sub = {k: r[k] for k in r.keys() if r[k] is not None}
+            except Exception:
+                pass
+
+            # 기어박스 sub: DESIGN_VEHICLE_SQL이 이미 GB_* 컬럼을 반환
+            gearbox_sub = {
+                k: row[k] for k in [
+                    "GB_Weight", "GB_Complexity", "GB_Smoothness", "GB_Comfort_Sub",
+                    "GB_Fuel", "GB_Performance", "GB_Costs", "GB_DesignCosts",
+                ] if row.get(k) is not None
+            }
+
+            result[car_id] = {
+                "engine_sub": engine_sub,
+                "chassis_sub": chassis_sub,
+                "gearbox_sub": gearbox_sub,
+            }
+
+        conn.close()
+    except Exception:
+        pass
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 위키 레퍼런스 + 포맷팅 헬퍼 (기존 유지)
+# ═══════════════════════════════════════════════════════════════════
 
 _DESIGN_REF_DIR = Path(__file__).resolve().parent.parent / "data" / "wiki"
 
@@ -118,36 +221,6 @@ def _load_design_reference(component_type: str) -> str:
     path = _DESIGN_REF_DIR / f"design_ref_{component_type}.md"
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
-
-_ENGINE_KW = ["엔진", "engine", "bore", "stroke", "실린더", "cylinder", "hp",
-              "마력", "토크", "torque", "rpm", "배기량", "displacement"]
-_CHASSIS_KW = ["샤시", "chassis", "서스펜션", "suspension", "프레임", "frame",
-               "브레이크", "brake", "차체"]
-_GEARBOX_KW = ["기어박스", "gearbox", "변속기", "기어", "gear", "변속"]
-_GENERAL_KW = ["슬라이더", "slider", "설계", "design", "개선", "improve",
-               "최적", "optim", "업그레이드", "upgrade", "전체", "모든", "all"]
-
-
-def _select_design_references(question: str) -> str:
-    """질문 키워드에 따라 관련 위키 레퍼런스 선택 주입."""
-    q = question.lower()
-    refs = [_load_design_reference("vehicle")]  # 항상 포함
-
-    need_all = any(kw in q for kw in _GENERAL_KW)
-    if need_all or any(kw in q for kw in _ENGINE_KW):
-        refs.append(_load_design_reference("engine"))
-    if need_all or any(kw in q for kw in _CHASSIS_KW):
-        refs.append(_load_design_reference("chassis"))
-    if need_all or any(kw in q for kw in _GEARBOX_KW):
-        refs.append(_load_design_reference("gearbox"))
-
-    combined = "\n\n---\n\n".join(r for r in refs if r)
-    if len(combined) > 12000:
-        combined = combined[:12000] + "\n...(truncated)"
-    return combined
-
-
-# ── 슬라이더 컨텍스트 포맷팅 ─────────────────────────────────────
 
 def _fv(v) -> str:
     """Format slider float value."""
@@ -299,176 +372,516 @@ def _format_slider_context(rows: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
-def _calculate_design_metrics(rows: list[dict], current_year: int) -> str:
-    """Step 2: Python 계산 (노후화, 개선비용, 토크, 레이팅, 보어 시뮬)."""
+# ═══════════════════════════════════════════════════════════════════
+# 다단계 설계 자문 헬퍼
+# ═══════════════════════════════════════════════════════════════════
+
+def _write_progress(msg: str):
+    """스테이지 진행 상황을 콘솔에 출력."""
     try:
-        all_reports = []
-        for row in rows:
-            engine = EngineParams(
-                engine_id=row.get("Engine_ID", 0),
-                bore=row.get("bore", 0) or 0,
-                stroke=row.get("stroke", 0) or 0,
-                cylinders=row.get("cylinders", 0) or 0,
-                hp=row.get("engine_hp", 0) or 0,
-                torque=row.get("engine_torque", 0) or 0,
-                rpm=row.get("engine_rpm", 0) or 0,
-                weight=row.get("engine_weight", 0) or 0,
-                size_cc=row.get("size_cc", 0) or 0,
-                fuel_milage=row.get("fuelmilage", 0) or 0,
-                year_built=row.get("engine_year", 0) or 0,
-                mod_year=row.get("engine_mod_year", 0) or 0,
-                design_cost=row.get("engine_designcost", 0) or 0,
-                static_power=row.get("StaticenginePower", 0) or 0,
-                static_fuel_eco=row.get("StaticengineFuelEco", 0) or 0,
-                static_reliability=row.get("StaticengineReliability", 0) or 0,
-                static_smooth=row.get("StaticRating_Smooth", 0) or 0,
-                current_power=row.get("enginePower", 0) or 0,
-                current_fuel_eco=row.get("engineFuelEco", 0) or 0,
-                current_reliability=row.get("engineReliability", 0) or 0,
-                current_smooth=row.get("Rating_Smooth", 0) or 0,
-            )
+        sys.stdout.buffer.write(f"  📐 {msg}\n".encode("utf-8", errors="replace"))
+        sys.stdout.buffer.flush()
+    except Exception:
+        pass
 
-            vehicle = VehicleParams(
-                car_id=row.get("Car_ID", 0),
-                name=row.get("Name", ""),
-                trim=row.get("Trim", ""),
-                car_type=row.get("CarType", ""),
-                year_built=row.get("car_year", 0) or 0,
-                design_cost=row.get("car_designcost", 0) or 0,
-                mod_amount=row.get("ModAmount", 0) or 0,
-                parent_car_id=row.get("ParentCarID", -1) or -1,
-                engine_id=row.get("Engine_ID", 0),
-                chassis_id=row.get("Chassis_ID", 0),
-                gearbox_id=row.get("Gearbox_ID", 0),
-                spec_hp=row.get("Spec_HP", 0) or 0,
-                spec_torque=row.get("Spec_Torque", 0) or 0,
-                spec_rpm=row.get("Spec_RPM", 0) or 0,
-                spec_weight=row.get("Spec_Weight", 0) or 0,
-                spec_top_speed=row.get("Spec_TopSpeed", 0) or 0,
-                spec_fuel=row.get("Spec_Fuel", 0) or 0,
-                rating_performance=row.get("Rating_Performance", 0) or 0,
-                rating_drivability=row.get("Rating_Drivability", 0) or 0,
-                rating_luxury=row.get("Rating_Luxury", 0) or 0,
-                rating_safety=row.get("Rating_Safety", 0) or 0,
-            )
 
-            # 노후화
-            engine_effective_year = engine.mod_year if engine.mod_year > engine.year_built else engine.year_built
-            chassis_year = row.get("chassis_year", 0) or 0
-            chassis_mod_year = row.get("chassis_mod_year", 0) or 0
-            chassis_effective = chassis_mod_year if chassis_mod_year > chassis_year else chassis_year
-            gearbox_year = row.get("gearbox_year", 0) or 0
-            gearbox_mod_year = row.get("gearbox_mod_year", 0) or 0
-            gearbox_effective = gearbox_mod_year if gearbox_mod_year > gearbox_year else gearbox_year
+_GENERIC_PATTERNS = [
+    r"구체적\s*수치는\s*설계에\s*따라",
+    r"엔진을?\s*디자인할\s*때\s*조절하는",
+    r"다음\s*단계\s*제안",
+    r"설계가?\s*완료된\s*상태",
+    r"일반적인\s*(엔진|샤시|기어박스|차량)\s*설계",
+]
 
-            staleness = calc_staleness(
-                current_year, vehicle.year_built,
-                engine_effective_year, chassis_effective, gearbox_effective,
-            )
 
-            # 개선 비용 (4가지 시나리오)
-            mod_base = estimate_modification_cost(vehicle.design_cost)
-            mod_engine = estimate_modification_cost(vehicle.design_cost, engine_change=True)
-            mod_gearbox = estimate_modification_cost(vehicle.design_cost, gearbox_change=True)
-            mod_chassis = estimate_modification_cost(vehicle.design_cost, chassis_change=True)
-            mod_costs = {
-                "cost_breakdown_text": (
-                    f"기본 New Gen: ${mod_base['estimated_cost']:,} ({mod_base['total_percent']}%)\n"
-                    f"+ 엔진 변경: ${mod_engine['estimated_cost']:,} ({mod_engine['total_percent']}%)\n"
-                    f"+ 기어박스만: ${mod_gearbox['estimated_cost']:,} ({mod_gearbox['total_percent']}%)\n"
-                    f"+ 샤시 변경: ${mod_chassis['estimated_cost']:,} ({mod_chassis['total_percent']}%)"
-                ),
-            }
+def _is_generic_response(text: str) -> bool:
+    """응답이 제네릭(교과서적)인지 감지."""
+    for pat in _GENERIC_PATTERNS:
+        if re.search(pat, text):
+            return True
+    slider_values = re.findall(r'0\.\d{2}', text)
+    if len(slider_values) < 3:
+        return True
+    return False
 
-            # 토크 호환성
-            torque_check = check_torque_compatibility(
-                engine.torque, row.get("MaxTorqueInput", 0) or 0,
-            )
 
-            # 엔진 레이팅 변화
-            engine_rating_deltas = compare_ratings(
-                {"Power": engine.static_power, "FuelEco": engine.static_fuel_eco,
-                 "Reliability": engine.static_reliability, "Smooth": engine.static_smooth},
-                {"Power": engine.current_power, "FuelEco": engine.current_fuel_eco,
-                 "Reliability": engine.current_reliability, "Smooth": engine.current_smooth},
-            )
+def _parse_stage_json(text: str) -> dict:
+    """LLM JSON 출력 추출. strip_think_tags → json.loads → 여러 fallback.
 
-            # 샤시 레이팅 변화
-            chassis_rating_deltas = compare_ratings(
-                {"Strength": row.get("StaticOverallStrength", 0) or 0,
-                 "Comfort": row.get("StaticOverallComfort", 0) or 0,
-                 "Performance": row.get("StaticOverallPerformance", 0) or 0,
-                 "Dependability": row.get("StaticOverallDependabilty", 0) or 0},
-                {"Strength": row.get("Overall_Strength", 0) or 0,
-                 "Comfort": row.get("Overall_Comfort", 0) or 0,
-                 "Performance": row.get("Overall_Performance", 0) or 0,
-                 "Dependability": row.get("Overall_Dependabilty", 0) or 0},
-            )
+    Qwen은 <think> 블록, 마크다운 코드펜스, 설명 텍스트 등을 혼합 출력하므로
+    여러 단계로 JSON을 추출한다.
+    """
+    cleaned = strip_think_tags(text)
 
-            # 보어 시뮬레이션 (+5mm)
-            bore_sim = None
-            if engine.bore > 0:
-                bore_sim = simulate_bore_change(engine, engine.bore + 5)
+    # 1. ```json ... ``` 블록 추출
+    json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', cleaned, re.DOTALL)
+    if json_match:
+        try:
+            return json.loads(json_match.group(1).strip())
+        except json.JSONDecodeError:
+            cleaned = json_match.group(1)
 
-            report = format_design_report(
-                vehicle=vehicle,
-                staleness=staleness,
-                mod_costs=mod_costs,
-                torque_check=torque_check,
-                rating_deltas={**engine_rating_deltas, **chassis_rating_deltas},
-                bore_sim=bore_sim,
-            )
-            all_reports.append(f"--- {vehicle.name} {vehicle.trim} (ID: {vehicle.car_id}) ---\n{report}")
+    # 2. 첫 { ~ 마지막 } 추출 (가장 바깥 중괄호 매칭)
+    brace_start = cleaned.find('{')
+    brace_end = cleaned.rfind('}')
+    if brace_start >= 0 and brace_end > brace_start:
+        candidate = cleaned[brace_start:brace_end + 1]
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            # 3. trailing comma, 한국어 키, 따옴표 없는 값 등 정리 시도
+            fixed = re.sub(r',\s*}', '}', candidate)  # trailing comma
+            fixed = re.sub(r',\s*]', ']', fixed)  # trailing comma in arrays
+            try:
+                return json.loads(fixed)
+            except json.JSONDecodeError:
+                pass
 
-        return "\n\n".join(all_reports) if all_reports else "(계산 대상 차량 없음)"
+    # 4. 개별 키-값 추출 fallback (슬라이더 값이라도 건지기)
+    sliders = {}
+    for m in re.finditer(r'"([^"]+)"\s*:\s*([\d.]+)', cleaned):
+        try:
+            sliders[m.group(1)] = float(m.group(2))
+        except ValueError:
+            pass
+    if sliders:
+        # reasoning 추출 시도
+        reasoning_match = re.search(r'"reasoning"\s*:\s*"([^"]*)"', cleaned)
+        result = {"sliders": sliders}
+        if reasoning_match:
+            result["reasoning"] = reasoning_match.group(1)
+        return result
 
-    except Exception as e:
-        return f"(Python 계산 오류: {e})"
+    return {}
 
+
+def _extract_design_goal(llm, question: str, vehicle_summary: str) -> dict:
+    """Stage 0: LLM으로 목표 구조화."""
+    prompt = DESIGN_GOAL_PROMPT.format(
+        question=question,
+        vehicle_summary=vehicle_summary,
+    )
+    messages = [
+        SystemMessage(content=DESIGN_SYSTEM_MESSAGE),
+        HumanMessage(content=prompt),
+    ]
+    response = llm.invoke(messages)
+    goal = _parse_stage_json(response.content)
+
+    # 기본값 보장
+    goal.setdefault("mode", "new")
+    goal.setdefault("car_type", "any")
+    goal.setdefault("target_segment", "any")
+    goal.setdefault("constraints", {})
+    goal.setdefault("priority_list", [])
+    goal.setdefault("specific_component", "all")
+
+    return goal
+
+
+def _build_default_sliders(keys: list[str], value: float = 0.5) -> dict:
+    """신규 설계용 기본 슬라이더 dict."""
+    return {k: value for k in keys}
+
+
+def _format_goal_summary(goal: dict) -> str:
+    """목표 dict를 LLM 프롬프트용 축약 텍스트로."""
+    parts = [
+        f"Mode: {goal.get('mode', 'new')}",
+        f"Car Type: {goal.get('car_type', 'any')}",
+        f"Segment: {goal.get('target_segment', 'any')}",
+    ]
+    constraints = goal.get("constraints", {})
+    if constraints:
+        for k, v in constraints.items():
+            if v is not None:
+                parts.append(f"{k}: {v}")
+    priorities = goal.get("priority_list", [])
+    if priorities:
+        parts.append(f"Priorities: {', '.join(priorities)}")
+    return " | ".join(parts)
+
+
+def _format_constraints(goal: dict) -> str:
+    """목표 제약을 읽기 좋게."""
+    constraints = goal.get("constraints", {})
+    if not constraints:
+        return "(No specific constraints)"
+    lines = []
+    for k, v in constraints.items():
+        if v is not None:
+            lines.append(f"- {k}: {v}")
+    return "\n".join(lines) if lines else "(No specific constraints)"
+
+
+def _format_component_summary(component: str, verified: dict) -> str:
+    """검증된 컴포넌트 결과를 다음 스테이지용 요약으로."""
+    lines = []
+    for k, v in verified.items():
+        if isinstance(v, (int, float)):
+            if "cost" in k:
+                lines.append(f"  {k}: ${v:,.0f}")
+            else:
+                lines.append(f"  {k}: {v:.1f}")
+    return "\n".join(lines)
+
+
+def _run_stage(llm, prompt_template: str, system_message: str = DESIGN_SYSTEM_MESSAGE, **kwargs) -> dict:
+    """단일 스테이지 실행: SystemMessage + HumanMessage → LLM 호출 → JSON 파싱."""
+    user_prompt = prompt_template.format(**kwargs)
+    messages = [
+        SystemMessage(content=system_message),
+        HumanMessage(content=user_prompt),
+    ]
+    response = llm.invoke(messages)
+    return _parse_stage_json(response.content)
+
+
+def _format_current_sliders(row: dict, keys: list[str]) -> str:
+    """현재 슬라이더 값을 key=value 형태로 포맷."""
+    if not row:
+        return "(New design — no current values)"
+    return ", ".join(f"{k}={_fv(row.get(k))}" for k in keys)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 설계 자문 노드 — 다단계 증거 기반 추론
+# ═══════════════════════════════════════════════════════════════════
 
 def design_advisor_node(state: GraphState) -> dict:
-    """설계 자문 노드: SQL 데이터 수집 → Python 계산 → LLM 합성."""
+    """설계 자문 노드: 다단계 증거 기반 추론 파이프라인.
+
+    Stage 0: 목표 추출 (1 LLM call)
+    Stage 1: Engine (감도 분석 + LLM 추론)
+    Stage 2: Chassis (감도 분석 + LLM 추론)
+    Stage 3: Gearbox (감도 분석 + LLM 추론)
+    Stage 4: Vehicle (LLM 추론)
+    Stage 5: 종합 검증 + 요약 (1 LLM call)
+    """
     db_path = state["db_path"]
-    analyst_summary = state.get("analyst_summary", "")
-
-    # Step 1: DB에서 차량 데이터 + 현재 연도 조회
-    rows, design_context, current_year = _fetch_vehicle_data(db_path)
-
-    # Step 1.5: 기술 레벨 + 사용 가능 컴포넌트 조회
-    skill_rnd, tech_context = _fetch_tech_components(db_path, current_year)
-
-    # Step 2: Python 계산
-    calc_results = _calculate_design_metrics(rows, current_year)
-
-    # Step 2.5: 슬라이더 컨텍스트 + 위키 레퍼런스 생성
-    slider_context = _format_slider_context(rows)
-    design_reference = _select_design_references(state["user_question"])
-
-    # Step 3: LLM 합성
+    question = state["user_question"]
     llm = create_llm(temperature=0.3)
-    prompt = DESIGN_ADVISOR_PROMPT.format(
-        question=state["user_question"],
-        analyst_summary=analyst_summary,
-        calc_results=calc_results,
-        design_context=design_context if len(design_context) < 8000 else design_context[:8000] + "\n...(truncated)",
+
+    # ── Step 1: 데이터 수집 ──
+    _write_progress("DB 데이터 조회 중...")
+    rows, design_context, current_year = _fetch_vehicle_data(db_path)
+    skill_rnd, tech_context = _fetch_tech_components(db_path, current_year)
+    _write_progress(f"조회 완료: year={current_year}, skill={skill_rnd}, vehicles={len(rows)}")
+
+    # ── Step 1.5: 서브컴포넌트 속성 (NEW) ──
+    sub_data = _fetch_sub_components(db_path, rows) if rows else {}
+
+    # ── Stage 0: 목표 추출 (1 LLM call) ──
+    _write_progress("Stage 0: 설계 목표 추출 중...")
+    vehicle_summary = _format_slider_context(rows) if rows else "(신규 설계 — 활성 차량 없음)"
+    if len(vehicle_summary) > 6000:
+        vehicle_summary = vehicle_summary[:6000] + "\n...(truncated)"
+    goal = _extract_design_goal(llm, question, vehicle_summary)
+    _write_progress(f"목표: mode={goal.get('mode')}, scope={goal.get('specific_component')}, type={goal.get('car_type')}")
+
+    # ── 타겟 차량 결정 ──
+    target = rows[0] if rows else None
+    mode = goal.get("mode", "new" if not target else "optimize")
+    scope = goal.get("specific_component", "all")
+
+    # ── 슬라이더/서브 준비 ──
+    if target:
+        car_id = target["Car_ID"]
+        car_sub = sub_data.get(car_id, {})
+        engine_sliders = {k: float(target.get(k, 0.5) or 0.5) for k in ENGINE_SLIDER_KEYS}
+        engine_sub = car_sub.get("engine_sub", {})
+        chassis_sliders = {k: float(target.get(k, 0.5) or 0.5) for k in CHASSIS_SLIDER_KEYS}
+        chassis_sub = car_sub.get("chassis_sub", {})
+        gearbox_sliders = {k: float(target.get(k, 0.5) or 0.5) for k in GEARBOX_SLIDER_KEYS}
+        gearbox_sub = car_sub.get("gearbox_sub", {})
+        vehicle_sliders = {k: float(target.get(k, 0.5) or 0.5) for k in VEHICLE_SLIDER_KEYS}
+        bore_mm = float(target.get("bore", 70) or 70)
+        stroke_mm = float(target.get("stroke", 80) or 80)
+        cylinders = int(target.get("cylinders", 4) or 4)
+        gears = int(target.get("Gears", 4) or 4)
+    else:
+        engine_sliders = _build_default_sliders(ENGINE_SLIDER_KEYS)
+        engine_sub = {}
+        chassis_sliders = _build_default_sliders(CHASSIS_SLIDER_KEYS)
+        chassis_sub = {}
+        gearbox_sliders = _build_default_sliders(GEARBOX_SLIDER_KEYS)
+        gearbox_sub = {}
+        vehicle_sliders = _build_default_sliders(VEHICLE_SLIDER_KEYS)
+        bore_mm, stroke_mm, cylinders, gears = 70.0, 80.0, 4, 4
+
+    goal_summary = _format_goal_summary(goal)
+    constraints_text = _format_constraints(goal)
+    stage_results = []  # 디버깅용 전체 스테이지 결과
+
+    # ═══ Stage 1: Engine ═══
+    verified_engine = {}
+    engine_result = {}
+    if scope in ("all", "engine"):
+        _write_progress("Stage 1: 엔진 감도 분석 (14 sliders)...")
+        engine_sensitivity = compute_sensitivity(
+            "engine", engine_sliders, engine_sub,
+            current_year, skill_rnd,
+            bore_mm=bore_mm, stroke_mm=stroke_mm, cylinders=cylinders,
+        )
+        engine_cards = format_evidence_cards("engine", engine_sensitivity)
+
+        _write_progress("Stage 1: 엔진 LLM 추론 중...")
+        engine_result = _run_stage(
+            llm, DESIGN_STAGE_ENGINE_PROMPT,
+            goal_summary=goal_summary,
+            engine_evidence_cards=engine_cards if len(engine_cards) < 6000 else engine_cards[:6000] + "\n...(truncated)",
+            constraints=constraints_text,
+            available_components=tech_context if len(tech_context) < 4000 else tech_context[:4000] + "\n...(truncated)",
+            current_engine=_format_current_sliders(target, ENGINE_SLIDER_KEYS),
+        )
+        _sliders_parsed = bool(engine_result.get("sliders"))
+        _write_progress(f"Stage 1 완료: sliders={'OK' if _sliders_parsed else 'fallback'}")
+
+        # Python 검증
+        result_sliders = engine_result.get("sliders", engine_sliders)
+        result_bore = engine_result.get("bore_mm", bore_mm)
+        result_stroke = engine_result.get("stroke_mm", stroke_mm)
+        result_cylinders = engine_result.get("cylinders", cylinders)
+        verified_engine = estimate_engine_full(
+            dict(result_sliders), dict(engine_sub), current_year, skill_rnd,
+            result_bore, result_stroke, result_cylinders,
+        )
+        engine_result["verified"] = verified_engine
+        stage_results.append({"stage": "engine", "result": engine_result})
+    else:
+        # 기존 엔진 스펙으로 폴백
+        verified_engine = estimate_engine_full(
+            dict(engine_sliders), dict(engine_sub), current_year, skill_rnd,
+            bore_mm, stroke_mm, cylinders,
+        )
+
+    # ═══ Stage 2: Chassis ═══
+    verified_chassis = {}
+    chassis_result = {}
+    if scope in ("all", "chassis"):
+        _write_progress("Stage 2: 샤시 감도 분석 (19 sliders)...")
+        chassis_sensitivity = compute_sensitivity(
+            "chassis", chassis_sliders, chassis_sub,
+            current_year, skill_rnd,
+        )
+        chassis_cards = format_evidence_cards("chassis", chassis_sensitivity)
+
+        _write_progress("Stage 2: 샤시 LLM 추론 중...")
+        chassis_result = _run_stage(
+            llm, DESIGN_STAGE_CHASSIS_PROMPT,
+            goal_summary=goal_summary,
+            prev_engine=_format_component_summary("engine", verified_engine),
+            chassis_evidence_cards=chassis_cards if len(chassis_cards) < 6000 else chassis_cards[:6000] + "\n...(truncated)",
+            constraints=constraints_text,
+            current_chassis=_format_current_sliders(target, CHASSIS_SLIDER_KEYS),
+        )
+        _write_progress(f"Stage 2 완료: sliders={'OK' if chassis_result.get('sliders') else 'fallback'}")
+
+        result_sliders = chassis_result.get("sliders", chassis_sliders)
+        verified_chassis = estimate_chassis_full(
+            dict(result_sliders), dict(chassis_sub), current_year, skill_rnd,
+        )
+        chassis_result["verified"] = verified_chassis
+        stage_results.append({"stage": "chassis", "result": chassis_result})
+    else:
+        verified_chassis = estimate_chassis_full(
+            dict(chassis_sliders), dict(chassis_sub), current_year, skill_rnd,
+        )
+
+    # ═══ Stage 3: Gearbox ═══
+    verified_gearbox = {}
+    gearbox_result = {}
+    engine_torque = verified_engine.get("torque", 0)
+
+    if scope in ("all", "gearbox"):
+        _write_progress("Stage 3: 기어박스 감도 분석 (8 sliders)...")
+        gearbox_sensitivity = compute_sensitivity(
+            "gearbox", gearbox_sliders, gearbox_sub,
+            current_year, skill_rnd, gears=gears,
+        )
+        gearbox_cards = format_evidence_cards("gearbox", gearbox_sensitivity)
+
+        _write_progress("Stage 3: 기어박스 LLM 추론 중...")
+        gearbox_result = _run_stage(
+            llm, DESIGN_STAGE_GEARBOX_PROMPT,
+            goal_summary=goal_summary,
+            prev_engine=_format_component_summary("engine", verified_engine),
+            prev_chassis=_format_component_summary("chassis", verified_chassis),
+            gearbox_evidence_cards=gearbox_cards if len(gearbox_cards) < 6000 else gearbox_cards[:6000] + "\n...(truncated)",
+            constraints=constraints_text,
+            current_gearbox=_format_current_sliders(target, GEARBOX_SLIDER_KEYS),
+            engine_torque=engine_torque,
+        )
+        _write_progress(f"Stage 3 완료: sliders={'OK' if gearbox_result.get('sliders') else 'fallback'}")
+
+        result_sliders = gearbox_result.get("sliders", gearbox_sliders)
+        result_gears = gearbox_result.get("gears", gears)
+        verified_gearbox = estimate_gearbox_full(
+            dict(result_sliders), dict(gearbox_sub), result_gears,
+            current_year, skill_rnd,
+        )
+        gearbox_result["verified"] = verified_gearbox
+        stage_results.append({"stage": "gearbox", "result": gearbox_result})
+    else:
+        verified_gearbox = estimate_gearbox_full(
+            dict(gearbox_sliders), dict(gearbox_sub), gears,
+            current_year, skill_rnd,
+        )
+
+    # ═══ Stage 4: Vehicle ═══
+    vehicle_result = {}
+    component_cost = (verified_engine.get("unit_cost", 0) +
+                      verified_chassis.get("unit_cost", 0) +
+                      verified_gearbox.get("unit_cost", 0))
+    max_cost = goal.get("constraints", {}).get("max_unit_cost")
+    cost_budget_remaining = (max_cost - component_cost) if max_cost else 500
+
+    if scope in ("all", "vehicle"):
+        _write_progress("Stage 4: 차량 LLM 추론 중...")
+        vehicle_result = _run_stage(
+            llm, DESIGN_STAGE_VEHICLE_PROMPT,
+            goal_summary=goal_summary,
+            prev_engine=_format_component_summary("engine", verified_engine),
+            prev_chassis=_format_component_summary("chassis", verified_chassis),
+            prev_gearbox=_format_component_summary("gearbox", verified_gearbox),
+            engine_power_r=f"{verified_engine.get('power_rating', 0):.1f}",
+            engine_fuel_r=f"{verified_engine.get('fuel_eco_rating', 0):.1f}",
+            engine_rel_r=f"{verified_engine.get('reliability_rating', 0):.1f}",
+            chassis_comfort_r=f"{verified_chassis.get('comfort_rating', 0):.1f}",
+            chassis_perf_r=f"{verified_chassis.get('performance_rating', 0):.1f}",
+            chassis_str_r=f"{verified_chassis.get('strength_rating', 0):.1f}",
+            chassis_dep_r=f"{verified_chassis.get('dependability_rating', 0):.1f}",
+            gearbox_power_r=f"{verified_gearbox.get('power_rating', 0):.1f}",
+            gearbox_fuel_r=f"{verified_gearbox.get('fuel_rating', 0):.1f}",
+            gearbox_perf_r=f"{verified_gearbox.get('performance_rating', 0):.1f}",
+            gearbox_rel_r=f"{verified_gearbox.get('reliability_rating', 0):.1f}",
+            component_cost=component_cost,
+            constraints=constraints_text,
+            current_vehicle=_format_current_sliders(target, VEHICLE_SLIDER_KEYS),
+            cost_budget_remaining=max(cost_budget_remaining, 0),
+        )
+        _write_progress(f"Stage 4 완료: sliders={'OK' if vehicle_result.get('sliders') else 'fallback'}")
+        stage_results.append({"stage": "vehicle", "result": vehicle_result})
+
+    # ═══ Stage 5: 종합 검증 + 요약 ═══
+    _write_progress("Stage 5: Python 종합 검증 + LLM 요약...")
+    # 최종 슬라이더 결정 (각 스테이지 결과 또는 기존 값)
+    final_engine_sl = engine_result.get("sliders", engine_sliders)
+    final_chassis_sl = chassis_result.get("sliders", chassis_sliders)
+    final_gearbox_sl = gearbox_result.get("sliders", gearbox_sliders)
+    final_vehicle_sl = vehicle_result.get("sliders", vehicle_sliders)
+    final_bore = engine_result.get("bore_mm", bore_mm)
+    final_stroke = engine_result.get("stroke_mm", stroke_mm)
+    final_cylinders = engine_result.get("cylinders", cylinders)
+    final_gears = gearbox_result.get("gears", gears)
+
+    # Python 종합 검증
+    verification = verify_full_design(
+        final_engine_sl, engine_sub,
+        final_chassis_sl, chassis_sub,
+        final_gearbox_sl, gearbox_sub,
+        final_vehicle_sl,
+        current_year, skill_rnd,
+        final_bore, final_stroke, final_cylinders, final_gears,
+    )
+
+    # 검증 결과 요약
+    v = verification
+    verification_lines = [
+        f"Engine — Torque: {v['engine']['torque']:.1f}, HP: {v['engine']['hp']}, "
+        f"RPM: {v['engine']['rpm']}, FuelEco: {v['engine']['fuel_mpg']:.1f}mpg, "
+        f"Unit Cost: ${v['engine']['unit_cost']:,}",
+        f"Chassis — Weight: {v['chassis']['weight_kg']:.1f}kg, "
+        f"Comfort: {v['chassis']['comfort_rating']:.1f}, "
+        f"Unit Cost: ${v['chassis']['unit_cost']:,}",
+        f"Gearbox — Torque Cap: {v['gearbox']['torque_capacity']:.1f}, "
+        f"Unit Cost: ${v['gearbox']['unit_cost']:,}",
+        f"Total Component Unit Cost: ${v['total_unit_cost']:,}",
+        f"Torque Compatible: {v['torque_compatibility']['compatible']}",
+        f"Slider Averages: {v['slider_averages']}",
+    ]
+    if v["constraint_violations"]:
+        verification_lines.append(f"VIOLATIONS: {', '.join(v['constraint_violations'])}")
+    else:
+        verification_lines.append("All constraints satisfied.")
+    verification_summary = "\n".join(verification_lines)
+
+    # 스테이지 추론 요약
+    stage_reasoning_parts = []
+    for sr in stage_results:
+        stage_name = sr["stage"]
+        result = sr["result"]
+        reasoning = result.get("reasoning", "")
+        sliders = result.get("sliders", {})
+
+        part = f"### {stage_name.title()}\n"
+        if reasoning:
+            part += f"Reasoning: {reasoning}\n"
+        if sliders:
+            slider_lines = [f"  {k}: {v:.2f}" if isinstance(v, float) else f"  {k}: {v}"
+                            for k, v in sliders.items()]
+            part += "Recommended sliders:\n" + "\n".join(slider_lines[:20])
+        else:
+            part += "(LLM did not return slider values — using defaults)"
+
+        # 검증 결과 포함
+        verified = result.get("verified", {})
+        if verified:
+            part += "\nVerified metrics: " + ", ".join(
+                f"{k}={v:.1f}" if isinstance(v, float) else f"{k}={v}"
+                for k, v in verified.items()
+                if isinstance(v, (int, float))
+            )
+        stage_reasoning_parts.append(part)
+
+    if not stage_reasoning_parts:
+        # 스테이지 실패 시 감도 분석 증거 카드를 직접 포함
+        stage_reasoning = (
+            "No LLM stage reasoning available. "
+            "The Python sensitivity analysis and verification results above contain all computed data."
+        )
+    else:
+        stage_reasoning = "\n\n".join(stage_reasoning_parts)
+
+    # 차량 상태 텍스트
+    if rows:
+        vehicle_status = f"- Active Vehicles: {len(rows)} ({', '.join(r.get('Name', '?') for r in rows[:5])})"
+    else:
+        vehicle_status = "- Active Vehicles: 0 (new game — designing from scratch)"
+
+    # LLM 최종 요약 (1 call) — SystemMessage로 역할 고정
+    summary_prompt = DESIGN_SUMMARY_PROMPT.format(
+        goal_summary=goal_summary,
+        verification_summary=verification_summary,
+        stage_reasoning=stage_reasoning,
         skill_rnd=skill_rnd,
         current_year=current_year,
+        vehicle_status=vehicle_status,
         tech_context=tech_context if len(tech_context) < 4000 else tech_context[:4000] + "\n...(truncated)",
-        slider_context=slider_context if len(slider_context) < 8000 else slider_context[:8000] + "\n...(truncated)",
-        design_reference=design_reference,
+        question=question,
     )
-    response = llm.invoke(prompt)
-    answer = strip_think_tags(response.content)
+    summary_messages = [
+        SystemMessage(content=DESIGN_SYSTEM_MESSAGE),
+        HumanMessage(content=summary_prompt),
+    ]
+    summary_response = llm.invoke(summary_messages)
+    answer = strip_think_tags(summary_response.content)
 
     # 세션 메모리에 설계 결과 캐시
-    get_memory().put("vehicle_design", calc_results)
+    get_memory().put("vehicle_design", verification_summary)
 
     return {
         "final_answer": answer,
-        "design_calc_results": calc_results,
+        "design_calc_results": verification_summary,
         "design_context": design_context,
+        "design_goal": goal,
+        "design_stages": stage_results,
     }
 
+
+# ═══════════════════════════════════════════════════════════════════
+# 이벤트 예측 노드 (변경 없음)
+# ═══════════════════════════════════════════════════════════════════
 
 def forecast_advisor_node(state: GraphState) -> dict:
     """이벤트 예측 노드: 타임라인 데이터 로드 → 플레이어 자산 위험 분석 → LLM 합성."""

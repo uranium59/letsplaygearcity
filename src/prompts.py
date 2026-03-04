@@ -227,128 +227,288 @@ Answer in the same language as the user's question.
 Be specific and actionable. Reference the data to support your recommendations."""
 
 
-DESIGN_ADVISOR_PROMPT = """\
-You are a GearCity vehicle design advisor with deep knowledge of game mechanics.
-Use the Python-calculated data below AND your knowledge of design formulas to give precise, actionable advice.
+_DESIGN_ADVISOR_PROMPT_LEGACY = """\
+(Legacy prompt retained as fallback — see DESIGN_GOAL_PROMPT and stage prompts for active pipeline.)"""
 
-## Design Slider System
-GearCity uses slider-based design (0.0–1.0 range) for all components.
-All slider costs scale with slider² — doubling a slider roughly quadruples its cost contribution.
-A "hyper-slider penalty" applies when the average of all sliders is high (avg⁴ × constant).
 
-### Engine Sliders (15)
-- **Layout**: Displacement, Length, Width, Weight (physical dimensions → size/weight)
-- **Performance**: RPM, Torque, Fuel Economy (core tradeoff: Performance ↔ FuelEco)
-- **Design Focus**: Performance, FuelEco, Dependability (quality emphasis, squared cost)
-- **Technology**: Materials, Components, Techniques, Tech (broad cross-cutting benefits)
-- **Design Pace**: Development speed (higher = faster but more engineers)
+# ── 다단계 설계 자문 프롬프트 ──────────────────────────────────────
 
-### Chassis Sliders (19)
-- **Frame Dimensions**: Length, Width, Height, Weight, EngWidth, EngLength
-- **Suspension**: Stability, Comfort, Performance, Braking, Durability
-- **Design Emphasis**: Performance, Control, Strength, Dependability
-- **Technology**: Materials, Components, Techniques, Tech
+DESIGN_GOAL_PROMPT = """\
+[TASK] Extract the user's AUTOMOBILE design goals from their question.
+Context: GearCity car company simulation. The user manages a car manufacturer.
 
-### Gearbox Sliders (9)
-- **Design**: Performance, Fuel, Dependability, Comfort
-- **Technology**: Material, Parts, Techniques, Tech
-- **Design Pace**: Development speed
+## Vocabulary (절대 혼동 금지)
+- "엔진"/"engine" = 자동차 내연기관 (car engine with pistons, bore, stroke)
+- "설계"/"design" = 자동차 부품 설계 (automobile component design)
+- NEVER interpret as game engine, software engine, or game development tool.
 
-### Vehicle Sliders (20)
-- **Interior**: Style, Innovation, Luxury, Comfort, Safety, Tech
-- **Materials**: MatQual, InteriorQual(15× quality!), PaintQual, ManuTech
-- **Design**: Style, Luxury, Safety, Cargo, Dependability(20× depend!)
-- **Testing**: Demo, Performance, Fuel, Comfort, Utility, Reliability
-
-### Key Rules
-- Performance ↔ Fuel Economy: inversely related across all components
-- Technology sliders give broad benefits at moderate cost — best cost-effectiveness
-- TECH_Techniques (chassis) reduces design requirements — always efficient
-- Interior Quality (Scroll_MatMatInterQual) has 15× weight on Quality rating
-- Design Dependability (Scroll_DesignDepend) has 20× weight on Dependability rating
-- Torque input must exceed engine torque (gearbox) or quality/reliability penalty applies
-
-### Extreme Value Warnings (IMPORTANT)
-- Slider costs scale as slider² — above ~0.6, cost increase outpaces rating gain
-- Hyper-slider penalty: avg(all sliders)⁴ × 450~500 × 1.04^year on unit cost
-  - Safe avg: ≤ 0.5 | Risky: 0.6~0.7 | Dangerous: ≥ 0.75
-- Many sliders have NEGATIVE cross-effects at high values:
-  - Performance sliders ↑ hurt fuel/reliability
-  - Comfort sliders ↑ hurt performance/reliability
-  - TECH_Tech ↑ hurts durability (chassis) and reliability (gearbox)
-- Very LOW sliders can also be costly: lightweight/compact designs use (1-slider)² pricing
-- Optimal cost-efficiency zone: 0.2~0.6 for most sliders
-- When analyzing player designs, WARN if: avg > 0.65, any slider > 0.85, or key sliders = 0
-
-### Design Pace (Research Funding)
-- Pure time/cost tradeoff — does NOT affect any ratings
-- Cost: (base/5) + (base × pace² × 4.5) — pace 0.35=75%, 0.5=133%, 1.0=470%
-- Time: pace < 0.5 adds turns, pace > 0.5 saves turns
-- Employees: scales linearly with pace — more pace = more engineers
-- Recommend: 0.2~0.35 (budget), 0.4~0.5 (balanced), 0.6~0.7 (urgent only)
-
-## Key Design Formulas
-- Displacement: CC = 0.7854 × bore² × stroke × cylinders
-- HP = (torque × rpm) / 5252
-- Bore ↑ → displacement ↑ → torque ↑ → HP ↑ (fuel economy ↓)
-- Stroke ↑ → displacement ↑ + torque ↑, but RPM ↓ (net HP varies)
-
-## Modification Cost Rules
-- New Generation (no component change): 15% of original design cost
-- + Gearbox change: +5% (total 20%)
-- + Engine change: +5% + auto gearbox 5% (total 25%)
-- + Engine & Gearbox: +10% (total 25%)
-- Chassis change: 100% (full redesign cost)
-
-## Staleness Thresholds
-- Vehicle: safe under ~5 years, penalty starts at age+4 > 9
-- Components: safe under 12 years, steep after 15
-- Combined staleness > 1.0 → buyer rating divided by staleness^1.2
-
-## Torque Compatibility
-- Engine torque > gearbox max torque → quality/reliability penalty
-- Always check headroom when changing engines
-
-## Rating Interpretation
-- Static = at design time, Current = now (with tech progression)
-- Negative delta = design falling behind current technology
-
-## Wiki Design Reference (game mechanics detail)
-{design_reference}
-
-## Current Slider Settings & Estimated Ratings
-{slider_context}
-
-## Technology Constraints
-Player's design skill (SKILL_RND): {skill_rnd}
-Current year: {current_year}
-
-### Available Components (SkillReq <= {skill_rnd} AND Year <= {current_year})
-{tech_context}
-
-CRITICAL: Only recommend components from the available list above.
-Do NOT suggest components the player cannot build yet.
+## Current Vehicle Summary
+{vehicle_summary}
 
 ## User Question
 {question}
 
-## Analyst Summary (from SQL data)
-{analyst_summary}
+Output ONLY valid JSON — no markdown fences, no explanation:
+{{
+  "mode": "new" | "optimize" | "diagnose",
+  "car_type": "<Economy|Standard|Premium|Luxury|Sport|Truck|Utility|Military|any>",
+  "target_segment": "<budget|midrange|premium|performance|economy|any>",
+  "constraints": {{
+    "max_unit_cost": <number or null>,
+    "min_overall_rating": <number or null>,
+    "priority_metrics": ["<metric_name>", ...]
+  }},
+  "priority_list": ["<what matters most>", ...],
+  "specific_component": "engine" | "chassis" | "gearbox" | "vehicle" | "all"
+}}
 
-## Python Calculation Results
-{calc_results}
+Rules:
+- "engine" = car engine (pistons, bore, stroke, cylinders). NEVER game engine.
+- "mode": "new" if no existing vehicle or user wants a new design. "optimize" if improving existing. "diagnose" if asking about current state.
+- "specific_component": infer from keywords. Default "all" if unclear.
+- Respond ONLY with the JSON object."""
 
-## Additional Design Data (from SQL)
-{design_context}
 
-Instructions:
-1. Reference the specific numbers from calculations (don't re-calculate)
-2. When recommending slider changes, specify WHICH slider, current value, and recommended value
-3. Estimate the cost/rating impact of recommended changes using the calculation results
-4. Prioritize by cost-effectiveness (biggest improvement per dollar)
-5. Warn about any compatibility issues or urgent staleness
-6. Answer in the same language as the user's question
-7. NEVER recommend components not in the Available Components list — they are locked by tech level"""
+DESIGN_STAGE_ENGINE_PROMPT = """\
+[TASK] Design a car ENGINE (내연기관: pistons, bore, stroke, cylinders, torque, HP).
+Each slider controls a physical property of this automobile engine (0.0 to 1.0 range).
+
+## Goal
+{goal_summary}
+
+## Evidence Cards (Python sensitivity analysis — exact numbers)
+{engine_evidence_cards}
+
+## Constraints
+{constraints}
+
+## Available Engine Components
+{available_components}
+
+## Current Engine (if optimizing)
+{current_engine}
+
+## Instructions
+For each slider, reason using the evidence card data:
+1. What does the evidence show about cost vs. rating impact for this slider?
+2. Does the current goal favor raising or lowering this slider?
+3. What's the sweet spot given the constraints?
+
+Consider:
+- Performance ↔ Fuel Economy tradeoff
+- slider² cost scaling — above 0.6 cost outpaces ratings
+- Technology sliders give broad benefits at moderate cost
+- Dependability focus (slider_designdependability) has 6× reliability contribution
+
+Output ONLY valid JSON — no markdown fences, no explanation:
+{{
+  "reasoning": "<2-3 sentences explaining key tradeoffs>",
+  "sliders": {{
+    "slider_displace": <0.0-1.0>, "slider_length": <0.0-1.0>,
+    "slider_width": <0.0-1.0>, "slider_weight": <0.0-1.0>,
+    "slider_rpm": <0.0-1.0>, "slider_torq": <0.0-1.0>, "slider_eco": <0.0-1.0>,
+    "slider_materials": <0.0-1.0>, "slider_techniques": <0.0-1.0>,
+    "slider_tech": <0.0-1.0>, "slider_compoenents": <0.0-1.0>,
+    "slider_designperformance": <0.0-1.0>, "slider_designfueleco": <0.0-1.0>,
+    "slider_designdependability": <0.0-1.0>
+  }},
+  "design_pace": <0.0-1.0>,
+  "bore_mm": <number>, "stroke_mm": <number>, "cylinders": <int>,
+  "layout": "<from available>", "fuel_type": "<from available>",
+  "induction": "<from available>", "valve": "<from available>"
+}}"""
+
+
+DESIGN_STAGE_CHASSIS_PROMPT = """\
+[TASK] Design a car CHASSIS (차체 프레임: frame, suspension, drivetrain).
+Each slider controls a physical property of this automobile chassis (0.0 to 1.0 range).
+
+## Goal
+{goal_summary}
+
+## Previous Stage Results
+### Engine
+{prev_engine}
+
+## Evidence Cards (Python sensitivity analysis — exact numbers)
+{chassis_evidence_cards}
+
+## Constraints
+{constraints}
+
+## Current Chassis (if optimizing)
+{current_chassis}
+
+## Instructions
+Use the engine output (HP, torque, weight, cost) to inform chassis decisions:
+- Engine bay size (FD_ENG_Width, FD_ENG_Length) must accommodate the engine
+- Frame weight affects total vehicle weight and performance
+- Suspension tuning should match the car type (Economy→comfort, Sport→performance)
+
+For each slider, reason using the evidence card data.
+
+Output ONLY valid JSON — no markdown fences, no explanation:
+{{
+  "reasoning": "<2-3 sentences>",
+  "sliders": {{
+    "FD_Length": <0.0-1.0>, "FD_Width": <0.0-1.0>,
+    "FD_Height": <0.0-1.0>, "FD_Weight": <0.0-1.0>,
+    "FD_ENG_Width": <0.0-1.0>, "FD_ENG_Length": <0.0-1.0>,
+    "SUS_Stability": <0.0-1.0>, "SUS_Comfort": <0.0-1.0>,
+    "SUS_Performance": <0.0-1.0>, "SUS_Braking": <0.0-1.0>,
+    "SUS_Durability": <0.0-1.0>,
+    "ch_DE_Performance": <0.0-1.0>, "DE_Control": <0.0-1.0>,
+    "DE_Str": <0.0-1.0>, "DE_Depend": <0.0-1.0>,
+    "ch_TECH_Materials": <0.0-1.0>, "ch_TECH_Compoenents": <0.0-1.0>,
+    "ch_TECH_Techniques": <0.0-1.0>, "ch_TECH_Tech": <0.0-1.0>
+  }},
+  "design_pace": <0.0-1.0>,
+  "drivetrain": "<from available>",
+  "fr_suspension": "<from available>",
+  "rr_suspension": "<from available>"
+}}"""
+
+
+DESIGN_STAGE_GEARBOX_PROMPT = """\
+[TASK] Design a car GEARBOX (변속기: transmission, gears).
+Each slider controls a property of this automobile gearbox (0.0 to 1.0 range).
+
+## Goal
+{goal_summary}
+
+## Previous Stage Results
+### Engine
+{prev_engine}
+### Chassis
+{prev_chassis}
+
+## Evidence Cards (Python sensitivity analysis — exact numbers)
+{gearbox_evidence_cards}
+
+## Constraints
+{constraints}
+
+## Current Gearbox (if optimizing)
+{current_gearbox}
+
+## Instructions
+CRITICAL: Gearbox torque capacity MUST exceed engine torque ({engine_torque:.0f} lb-ft).
+If torque capacity is insufficient, quality and reliability ratings will be penalized.
+
+Consider:
+- More gears = better fuel economy and performance, but more cost
+- Performance slider is most cost-efficient (20×year)
+- Dependability is most expensive (45×year×slider²)
+- Comfort improves ride but penalizes reliability at high values
+
+Output ONLY valid JSON — no markdown fences, no explanation:
+{{
+  "reasoning": "<2-3 sentences>",
+  "sliders": {{
+    "g_de_performance": <0.0-1.0>, "de_fuel": <0.0-1.0>,
+    "de_depend": <0.0-1.0>, "de_comfort": <0.0-1.0>,
+    "Tech_Material": <0.0-1.0>, "Tech_Parts": <0.0-1.0>,
+    "g_Tech_Techniques": <0.0-1.0>, "g_Tech_Tech": <0.0-1.0>
+  }},
+  "design_pace": <0.0-1.0>,
+  "gearbox_type": "<from available>",
+  "gears_name": "<from available>",
+  "gears": <int>
+}}"""
+
+
+DESIGN_STAGE_VEHICLE_PROMPT = """\
+[TASK] Finalize a car/vehicle design (차량 완성: interior, materials, testing, styling).
+These sliders control interior quality, materials, testing, and styling of this automobile (0.0 to 1.0 range).
+
+## Goal
+{goal_summary}
+
+## Previous Stage Results
+### Engine
+{prev_engine}
+### Chassis
+{prev_chassis}
+### Gearbox
+{prev_gearbox}
+
+## Component Ratings Summary
+- Engine: Power={engine_power_r}, FuelEco={engine_fuel_r}, Reliability={engine_rel_r}
+- Chassis: Comfort={chassis_comfort_r}, Performance={chassis_perf_r}, Strength={chassis_str_r}, Depend={chassis_dep_r}
+- Gearbox: Power={gearbox_power_r}, Fuel={gearbox_fuel_r}, Performance={gearbox_perf_r}, Reliability={gearbox_rel_r}
+- Estimated Component Cost: ${component_cost:,}
+
+## Constraints
+{constraints}
+
+## Current Vehicle Sliders (if optimizing)
+{current_vehicle}
+
+## Instructions
+Vehicle sliders determine final ratings and buyer appeal. Key high-weight sliders:
+- Interior Quality (Scroll_MatMatInterQual): 15× Quality rating weight — CRITICAL
+- Design Dependability (Scroll_DesignDepend): 20× Dependability weight — CRITICAL
+- Manufacturing Tech (Scroll_MatManuTech): 7× benefit — very efficient
+- Interior Safety (Scroll_InteriorSafe): 10× design req + 1.25× weight — expensive
+
+Balance ratings against cost budget remaining: ${cost_budget_remaining:,}
+
+Output ONLY valid JSON — no markdown fences, no explanation:
+{{
+  "reasoning": "<2-3 sentences>",
+  "sliders": {{
+    "Scroll_InteriorStyle": <0.0-1.0>, "Scroll_InteriorInno": <0.0-1.0>,
+    "Scroll_InteriorLux": <0.0-1.0>, "Scroll_InteriorComf": <0.0-1.0>,
+    "Scroll_InteriorSafe": <0.0-1.0>, "Scroll_InteriorTech": <0.0-1.0>,
+    "Scroll_MatMatQual": <0.0-1.0>, "Scroll_MatMatInterQual": <0.0-1.0>,
+    "Scroll_MatPaintQual": <0.0-1.0>, "Scroll_MatManuTech": <0.0-1.0>,
+    "Scroll_DesignStyle": <0.0-1.0>, "Scroll_DesignLux": <0.0-1.0>,
+    "Scroll_DesignSafety": <0.0-1.0>, "Scroll_DesignCargo": <0.0-1.0>,
+    "Scroll_DesignDepend": <0.0-1.0>,
+    "Scroll_TestDemo": <0.0-1.0>, "Scroll_TestPerform": <0.0-1.0>,
+    "Scroll_TestFuel": <0.0-1.0>, "Scroll_TestComf": <0.0-1.0>,
+    "Scroll_TestUtil": <0.0-1.0>, "Scroll_TestReli": <0.0-1.0>
+  }},
+  "design_pace": <0.0-1.0>,
+  "demographics": {{"gender": <0-2>, "age": <0-4>, "income": <0-4>}}
+}}"""
+
+
+DESIGN_SUMMARY_PROMPT = """\
+[TASK] Summarize the automobile design results for the player.
+All numbers below are REAL data from the game database. Do NOT say data is missing.
+"엔진"/"engine" = car engine (pistons, cylinders, torque, HP). NEVER game engine.
+
+## Game State (CONFIRMED from database)
+- Current Year: {current_year}
+- Player Design Skill (SKILL_RND): {skill_rnd}
+{vehicle_status}
+
+## Design Goal
+{goal_summary}
+
+## Verification Results (Python-calculated — these are exact numbers)
+{verification_summary}
+
+## Stage-by-Stage Design Reasoning
+{stage_reasoning}
+
+## Available Components (SkillReq <= {skill_rnd}, Year <= {current_year})
+{tech_context}
+
+## Instructions
+IMPORTANT: You have ALL the data needed. Do NOT say data is missing or unavailable.
+The numbers above are accurate Python calculations from game formulas.
+
+1. Present the recommended slider values for each component in a clear table
+2. Show the verified performance metrics (torque, HP, cost, ratings)
+3. Report whether constraints were met or violated
+4. For violations, suggest specific slider adjustments with expected impact
+5. Recommend which component to design first in-game
+6. Warn about torque compatibility and slider average costs
+7. Answer in the same language as the user's question
+
+User Question: {question}"""
 
 
 FORECAST_ADVISOR_PROMPT = """\

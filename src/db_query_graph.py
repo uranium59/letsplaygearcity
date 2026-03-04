@@ -281,6 +281,8 @@ def run_query(question: str, db_path: Path, verbose: bool = False) -> str:
         "strategy_evaluations": [],
         "design_calc_results": "",
         "design_context": "",
+        "design_goal": {},
+        "design_stages": [],
         "forecast_context": "",
         "memory_context": "",
     }

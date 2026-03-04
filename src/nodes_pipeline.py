@@ -40,16 +40,25 @@ _FORECAST_KW_WEAK = [
 
 # design 키워드: 차량/엔진/샤시/기어박스 설계
 _DESIGN_KW_STRONG = [
+    # 기술 용어 (단독으로 충분)
     "보어", "bore", "스트로크", "stroke", "배기량", "displacement",
     "노후", "staleness", "리프레시", "refresh",
     "개선", "modification", "new generation",
+    "슬라이더", "slider",
 ]
 _DESIGN_KW_WEAK = [
+    # 컴포넌트명
+    "엔진", "engine", "샤시", "chassis", "기어박스", "gearbox",
+    "변속기", "transmission",
+    # 설계 동사/명사 (한국어 변형 포함)
+    "설계", "디자인", "design", "만들어", "제작",
+    # 성능 지표
     "마력", "horsepower", "hp", "토크", "torque",
-    "샤시", "chassis", "기어박스", "gearbox", "변속기", "transmission",
-    "설계", "design", "호환", "compatible", "compatibility",
-    "엔진", "engine", "upgrade", "비용", "cost",
+    # 기타
+    "호환", "compatible", "compatibility",
+    "upgrade", "업그레이드", "비용", "cost",
     "aging", "component", "부품",
+    "추천", "recommend", "최적", "optimal",
 ]
 
 

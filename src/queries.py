@@ -145,6 +145,78 @@ UNION ALL
 SELECT 'Cylinder' AS category, Name, SkillReq, Year, NULL, NULL, NULL, NULL
 FROM CylinderComponents WHERE SkillReq <= {skill} AND Year <= {year} AND (Death IS NULL OR Death > {year});"""
 
+# ── design_advisor: 엔진 서브컴포넌트 속성 조회 ──────────────────
+
+ENGINE_SUB_COMPONENTS_SQL = """\
+SELECT
+  e.Engine_ID,
+  -- LayoutComponents
+  lc.Engine_Length AS Layout_Length, lc.Engine_Width AS Layout_Width,
+  lc.Engine_LayoutPower AS Layout_PowerRatings,
+  lc.Engine_LayoutFuel AS Layout_FuelRatings,
+  lc.Engine_Reliability AS Layout_Reliability,
+  lc.Engine_LayoutSmooth AS Layout_Smoothness,
+  lc.Cost AS Layout_UnitCosts,
+  lc.Engine_DesignCost AS Layout_DesignCosts,
+  lc.Engine_Finish AS Layout_FinishTime,
+  lc.Weight AS Layout_Weight,
+  -- CylinderComponents
+  cc.Cyl_Power AS Cylinders_PowerRating, cc.CylFuel AS Cylinders_FuelRating,
+  cc.CylReliability AS Cylinders_ReliabilityRating,
+  cc.Cyl_Smooth AS Cylinders_SmoothnessRating,
+  cc.Cyl_Cost AS Cylinders_UnitCosts, cc.Cyl_DesignCost AS Cylinders_DesignCosts,
+  cc.Cyl_NumberOf AS Cylinders_CylinderCount, cc.Cyl_Finish AS Cylinders_FinishTime,
+  -- FuelComponents
+  fc.Fuel_Power AS FuelType_PowerRating, fc.Fuel_Fuel AS FuelType_FuelRating,
+  fc.Fuel_Reliability AS FuelType_ReliabilityRating,
+  fc.Fuel_Smooth AS FuelType_SmoothnessRating,
+  fc.Fuel_RPM AS FuelType_RPM,
+  fc.Fuel_Cost AS FuelType_UnitCosts, fc.Fuel_DesignCost AS FuelType_DesignCosts,
+  fc.Fuel_Finish AS FuelType_FinishTime,
+  -- InductionComponents
+  ic.Indu_Power AS Induction_PowerRating, ic.Indu_Fuel AS Induction_FuelRating,
+  ic.Indu_Reliability AS Induction_ReliabilityRating,
+  ic.Indu_Cost AS Induction_UnitCosts, ic.Indu_DesignCost AS Induction_DesignCosts,
+  ic.Indu_Finish AS Induction_FinishTime,
+  -- ValveComponents
+  vc.Valve_Power AS Valve_PowerRating, vc.Valve_Fuel AS Valve_FuelRating,
+  vc.Valve_Reliability AS Valve_ReliabilityRating,
+  vc.Valve_Smooth AS Valve_SmoothnessRating,
+  vc.Valve_Cost AS Valve_UnitCosts
+FROM EngineInfo e
+LEFT JOIN LayoutComponents lc ON e.Layout = lc.Name
+LEFT JOIN CylinderComponents cc ON e.Cylinders = cc.Name
+LEFT JOIN FuelComponents fc ON e.Fueltype = fc.Name
+LEFT JOIN InductionComponents ic ON e.Induction = ic.Name
+LEFT JOIN ValveComponents vc ON e.Valve = vc.Name
+WHERE e.Engine_ID = ?"""
+
+# ── design_advisor: 샤시 서브컴포넌트 속성 조회 ──────────────────
+
+CHASSIS_SUB_COMPONENTS_SQL = """\
+SELECT
+  ch.Chassis_ID,
+  dc.Weight AS Drive_Weight, dc.Cost AS Drive_Cost,
+  dc.Durability AS Drive_Duriblity,
+  dc.Drivetrain_RideSteering AS Drive_rideSteering,
+  dc.Drivetrain_CarPerformance AS Drive_carPerformance,
+  dc.Design AS Drive_Design,
+  fs.Cost AS FrSus_Cost, fs.Durability AS FrSus_Durability,
+  fs.Suspension_Steering AS FrSus_Steering,
+  fs.Suspension_Braking AS FrSus_Braking,
+  fs.Suspension_Comfort AS FrSus_Comfort,
+  fs.Suspension_Performance AS FrSus_Performance,
+  rs.Cost AS RrSus_Cost, rs.Durability AS RrSus_Durability,
+  rs.Suspension_Steering AS RrSus_Steering,
+  rs.Suspension_Braking AS RrSus_Braking,
+  rs.Suspension_Comfort AS RrSus_Comfort,
+  rs.Suspension_Performance AS RrSus_Performance
+FROM ChassisInfo ch
+LEFT JOIN DrivetrainComponents dc ON ch.Drivetrain = dc.Name
+LEFT JOIN SuspensionComponents fs ON ch.Fr_Suspension = fs.Name
+LEFT JOIN SuspensionComponents rs ON ch.Rr_Suspension = rs.Name
+WHERE ch.Chassis_ID = ?"""
+
 # ── forecast_advisor: 플레이어 자산 도시 조회 ────────────────────
 
 PLAYER_CITY_IDS_SQL = """\

@@ -730,6 +730,189 @@ def analyze_slider_health(row: dict) -> list[str]:
     return warnings
 
 
+# ── A-3. 슬라이더 추천 범위 ──────────────────────────────────────
+
+@dataclass
+class SliderProfile:
+    key: str           # DB 컬럼명
+    label: str         # 사람이 읽는 이름
+    component: str     # Engine/Chassis/Gearbox/Vehicle
+    optimal_lo: float  # 비용 효율 하한
+    optimal_hi: float  # 비용 효율 상한
+    reason_high: str   # 너무 높을 때 설명
+    reason_low: str    # 너무 낮을 때 설명
+    priority: int      # 조정 우선순위 (1=최우선, 3=보통)
+
+_SLIDER_PROFILES: list[SliderProfile] = [
+    # ── Engine (14 sliders) ──
+    SliderProfile("slider_displace", "Displacement", "Engine",
+                  0.25, 0.60, "비용 비선형 폭증 (slider^1.5~^6 항)", "배기량↓ → 토크/HP↓", 2),
+    SliderProfile("slider_length", "Length", "Engine",
+                  0.25, 0.60, "비용 증가", "(1-slider) 비용 항 → 소형은 비쌈", 3),
+    SliderProfile("slider_width", "Width", "Engine",
+                  0.25, 0.60, "비용 증가", "(1-slider) 비용 항 → 소형은 비쌈", 3),
+    SliderProfile("slider_weight", "Weight", "Engine",
+                  0.30, 0.55, "무거움 → RPM↓", "(1-weight)² 비용 폭등 — 경량화 비쌈", 2),
+    SliderProfile("slider_rpm", "RPM", "Engine",
+                  0.25, 0.55, "연비·신뢰성 악화 + 비용² 급증", "RPM 부족 → 출력 제한", 1),
+    SliderProfile("slider_torq", "Torque", "Engine",
+                  0.35, 0.60, "연비·신뢰성 패널티 급증", "0.4 미만은 토크 감소 공식", 1),
+    SliderProfile("slider_eco", "Fuel Economy", "Engine",
+                  0.20, 0.55, "토크 감소 패널티", "연비 레이팅↓", 2),
+    SliderProfile("slider_materials", "Materials", "Engine",
+                  0.30, 0.60, "비용 그룹 상승", "무게 감소/신뢰성 혜택 상실", 2),
+    SliderProfile("slider_techniques", "Techniques", "Engine",
+                  0.35, 0.65, "비효율 구간 진입", "설계요구 감소 혜택 상실 — 항상 효율적", 2),
+    SliderProfile("slider_tech", "Technology", "Engine",
+                  0.20, 0.50, "170×slider² 최고가 — 비효율적", "스무드 향상 상실", 2),
+    SliderProfile("slider_compoenents", "Components", "Engine",
+                  0.30, 0.60, "비용 그룹 상승", "신뢰성/스무드 혜택 상실", 2),
+    SliderProfile("slider_designperformance", "Perf Focus", "Engine",
+                  0.20, 0.55, "설계비 12000×slider² + 신뢰성 패널티", "토크/RPM 보너스 상실", 2),
+    SliderProfile("slider_designfueleco", "FuelEco Focus", "Engine",
+                  0.20, 0.55, "토크 14× 패널티 심화", "연비 보너스 상실", 2),
+    SliderProfile("slider_designdependability", "Depend Focus", "Engine",
+                  0.25, 0.55, "비용 50×slider² 증가", "신뢰성 6× 기여 상실 — 치명적", 1),
+
+    # ── Chassis (19 sliders) ──
+    SliderProfile("FD_Length", "Frame Length", "Chassis",
+                  0.30, 0.60, "비용 slider²×1.2 + 성능↓", "강도 레이팅↓", 3),
+    SliderProfile("FD_Width", "Frame Width", "Chassis",
+                  0.30, 0.55, "무게 급증", "안정성↓", 3),
+    SliderProfile("FD_Height", "Frame Height", "Chassis",
+                  0.25, 0.55, "완료시간↑", "강도↓", 3),
+    SliderProfile("FD_Weight", "Frame Weight", "Chassis",
+                  0.35, 0.55, "성능 -2× 패널티가 지배적", "(1-weight)² 비용 폭등", 1),
+    SliderProfile("FD_ENG_Width", "Engine Bay W", "Chassis",
+                  0.25, 0.55, "비용 증가", "엔진 크기 제한", 3),
+    SliderProfile("FD_ENG_Length", "Engine Bay L", "Chassis",
+                  0.25, 0.55, "비용 증가", "엔진 크기 제한", 3),
+    SliderProfile("SUS_Stability", "Stability", "Chassis",
+                  0.30, 0.60, "비용 증가, 성능↓", "컴포트 레이팅↓", 2),
+    SliderProfile("SUS_Comfort", "Comfort", "Chassis",
+                  0.25, 0.55, "1.25× 최고가 서스 + 성능↓", "럭셔리/컴포트↓", 2),
+    SliderProfile("SUS_Performance", "Performance", "Chassis",
+                  0.30, 0.60, "비용 1.2×", "성능 레이팅↓", 2),
+    SliderProfile("SUS_Braking", "Braking", "Chassis",
+                  0.30, 0.60, "비용 증가", "제동 성능↓ — 0.75× 최저가 서스", 2),
+    SliderProfile("SUS_Durability", "Durability", "Chassis",
+                  0.30, 0.55, "1.35× 최고가 서스", "내구성↓", 2),
+    SliderProfile("ch_DE_Performance", "Design Perf", "Chassis",
+                  0.20, 0.50, "설계비 14000×year×slider²", "성능 보너스 상실", 2),
+    SliderProfile("DE_Control", "Control", "Chassis",
+                  0.20, 0.55, "설계비 증가", "컴포트↓", 3),
+    SliderProfile("DE_Str", "Strength", "Chassis",
+                  0.20, 0.50, "설계비 14000×year×slider²", "강도↓", 3),
+    SliderProfile("DE_Depend", "Dependability", "Chassis",
+                  0.20, 0.50, "제조요구 증가", "내구성↓", 3),
+    SliderProfile("ch_TECH_Materials", "Materials", "Chassis",
+                  0.30, 0.60, "비용 1.25×", "무게 감소/강도 혜택 상실", 2),
+    SliderProfile("ch_TECH_Compoenents", "Components", "Chassis",
+                  0.30, 0.60, "비용 1.15×", "컴포트/성능/강도 혜택 상실", 2),
+    SliderProfile("ch_TECH_Techniques", "Techniques", "Chassis",
+                  0.40, 0.70, "비효율 구간", "설계요구 감소 — 항상 효율적", 1),
+    SliderProfile("ch_TECH_Tech", "Technology", "Chassis",
+                  0.20, 0.50, "내구성 감소(음수 항!) + 비용 1.25×", "성능/강도↓", 2),
+
+    # ── Gearbox (8 sliders) ──
+    SliderProfile("g_de_performance", "Performance", "Gearbox",
+                  0.30, 0.60, "비용 20×year — 가장 효율적", "성능↓ + 무게↑", 2),
+    SliderProfile("de_fuel", "Fuel Eco", "Gearbox",
+                  0.25, 0.55, "비용 25×year", "연비↓", 2),
+    SliderProfile("de_depend", "Dependability", "Gearbox",
+                  0.20, 0.50, "45×year×slider² 최고가!", "신뢰성↓", 1),
+    SliderProfile("de_comfort", "Comfort", "Gearbox",
+                  0.25, 0.55, "신뢰성 5×(1-slider) 패널티", "컴포트 40× 혜택 상실", 2),
+    SliderProfile("Tech_Material", "Material", "Gearbox",
+                  0.30, 0.60, "비용 그룹 상승", "연비+성능+신뢰성 교차 혜택 상실", 2),
+    SliderProfile("Tech_Parts", "Parts", "Gearbox",
+                  0.30, 0.60, "비용 그룹 상승", "성능+신뢰성+토크 혜택 상실", 2),
+    SliderProfile("g_Tech_Techniques", "Techniques", "Gearbox",
+                  0.30, 0.60, "비용 그룹 상승", "성능+제조 혜택 상실", 2),
+    SliderProfile("g_Tech_Tech", "Technology", "Gearbox",
+                  0.20, 0.50, "40×year×(0.5+slider²) + 신뢰성 패널티", "성능+연비↓", 2),
+
+    # ── Vehicle (21 sliders) ──
+    SliderProfile("Scroll_InteriorStyle", "Interior Style", "Vehicle",
+                  0.25, 0.55, "비용 증가", "럭셔리↓", 3),
+    SliderProfile("Scroll_InteriorInno", "Interior Inno", "Vehicle",
+                  0.20, 0.50, "설계요구 6× + 완료시간↑", "럭셔리↓", 3),
+    SliderProfile("Scroll_InteriorLux", "Interior Luxury", "Vehicle",
+                  0.25, 0.55, "무게 증가 + 비용 상승", "럭셔리 8× 혜택 상실", 2),
+    SliderProfile("Scroll_InteriorComf", "Interior Comfort", "Vehicle",
+                  0.25, 0.55, "설계요구 4× + 비용↑", "럭셔리↓", 3),
+    SliderProfile("Scroll_InteriorSafe", "Interior Safety", "Vehicle",
+                  0.20, 0.50, "설계요구 10× + 무게 1.25× — 비용 폭발", "안전 10× 혜택 상실", 1),
+    SliderProfile("Scroll_InteriorTech", "Interior Tech", "Vehicle",
+                  0.25, 0.55, "비용 증가", "안전+럭셔리 소폭↓", 3),
+    SliderProfile("Scroll_MatMatQual", "Material Quality", "Vehicle",
+                  0.25, 0.55, "무게 + 제조 4×", "안전+내구성↓", 2),
+    SliderProfile("Scroll_MatMatInterQual", "Interior Quality", "Vehicle",
+                  0.35, 0.65, "비용 증가 — 그래도 가치 있음", "품질 15× 기여 상실 — 치명적", 1),
+    SliderProfile("Scroll_MatPaintQual", "Paint Quality", "Vehicle",
+                  0.25, 0.55, "비용 증가", "품질 10× 상실", 2),
+    SliderProfile("Scroll_MatManuTech", "Manu Tech", "Vehicle",
+                  0.40, 0.65, "비용 대비 효율 여전히 좋음", "제조 7× 최고 혜택 상실", 1),
+    SliderProfile("Scroll_DesignStyle", "Design Style", "Vehicle",
+                  0.25, 0.55, "설계요구 10×", "품질+럭셔리↓", 2),
+    SliderProfile("Scroll_DesignLux", "Design Luxury", "Vehicle",
+                  0.25, 0.55, "설계비 20000× 그룹", "럭셔리+품질↓", 2),
+    SliderProfile("Scroll_DesignSafety", "Design Safety", "Vehicle",
+                  0.25, 0.55, "설계요구 10× + 무게 증가", "안전 10× 상실", 2),
+    SliderProfile("Scroll_DesignCargo", "Design Cargo", "Vehicle",
+                  0.20, 0.50, "완료시간 0.9×2 + 설계요구 5×", "화물 10× 상실", 3),
+    SliderProfile("Scroll_DesignDepend", "Design Depend", "Vehicle",
+                  0.30, 0.55, "설계요구 15× + 완료시간 1.8× — 최대!", "내구성 20× 상실 — 치명적", 1),
+    SliderProfile("Scroll_TestDemo", "Test Demo", "Vehicle",
+                  0.30, 0.55, "비용 증가", "인구통계 타겟팅 비활성화", 1),
+    SliderProfile("Scroll_TestPerform", "Test Perform", "Vehicle",
+                  0.25, 0.50, "완료시간 1.5× 급증", "성능+주행성↓", 2),
+    SliderProfile("Scroll_TestFuel", "Test Fuel", "Vehicle",
+                  0.20, 0.45, "완료시간 1.5× 급증", "연비↓", 2),
+    SliderProfile("Scroll_TestComf", "Test Comfort", "Vehicle",
+                  0.20, 0.45, "완료시간 1.5× + 주행성 -2×", "럭셔리↓", 2),
+    SliderProfile("Scroll_TestUtil", "Test Utility", "Vehicle",
+                  0.20, 0.45, "완료시간 1.5×", "화물+품질+내구성↓", 2),
+    SliderProfile("Scroll_TestReli", "Test Reliability", "Vehicle",
+                  0.25, 0.50, "완료시간 1.5× 급증", "품질+안전+내구성↓", 2),
+]
+
+
+def compute_slider_recommendations(row: dict) -> str:
+    """차량 슬라이더를 최적 범위와 비교, 구체적 추천 테이블 반환."""
+    adjustments = []  # (priority, component, label, current, recommendation, reason)
+
+    for p in _SLIDER_PROFILES:
+        v = float(row.get(p.key, -1) or 0)
+        if v < 0:  # 키 없음
+            continue
+
+        if v > p.optimal_hi + 0.05:  # 너무 높음 (5% 여유)
+            adjustments.append((
+                p.priority, p.component, p.label,
+                v, f"→ {p.optimal_hi:.2f} 이하", p.reason_high,
+            ))
+        elif v < p.optimal_lo - 0.05:  # 너무 낮음 (5% 여유)
+            adjustments.append((
+                p.priority, p.component, p.label,
+                v, f"→ {p.optimal_lo:.2f} 이상", p.reason_low,
+            ))
+
+    if not adjustments:
+        return "### ✓ Slider Recommendations: 모든 슬라이더가 비용 효율 최적 구간 내"
+
+    adjustments.sort(key=lambda x: (x[0], x[1]))  # 우선순위 → 컴포넌트
+
+    lines = ["### Slider Adjustment Recommendations (Python 사전계산)",
+             "| 우선 | 컴포넌트 | 슬라이더 | 현재값 | 추천 | 이유 |",
+             "|------|----------|----------|--------|------|------|"]
+    for pri, comp, label, cur, rec, reason in adjustments:
+        pri_mark = "🔴" if pri == 1 else "🟡" if pri == 2 else "⚪"
+        lines.append(f"| {pri_mark} | {comp} | {label} | {cur:.2f} | {rec} | {reason} |")
+
+    return "\n".join(lines)
+
+
 # ═══════════════════════════════════════════════════════════════════
 # B. 위키 슬라이더 수식 전체 구현
 # ═══════════════════════════════════════════════════════════════════
@@ -2419,3 +2602,269 @@ def simulate_slider_change(component_type: str, current_sliders: dict,
             diff[key] = round(after[key] - before[key], 2)
 
     return {"before": before, "after": after, "diff": diff}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# C. 감도 분석 + 증거 카드 + 종합 검증
+# ═══════════════════════════════════════════════════════════════════
+
+# ── C0. 슬라이더 키 그룹 상수 ──────────────────────────────────────
+
+ENGINE_SLIDER_KEYS = [
+    "slider_displace", "slider_length", "slider_width", "slider_weight",
+    "slider_rpm", "slider_torq", "slider_eco",
+    "slider_materials", "slider_techniques", "slider_tech", "slider_compoenents",
+    "slider_designperformance", "slider_designfueleco", "slider_designdependability",
+]
+
+CHASSIS_SLIDER_KEYS = [
+    "FD_Length", "FD_Width", "FD_Height", "FD_Weight",
+    "FD_ENG_Width", "FD_ENG_Length",
+    "SUS_Stability", "SUS_Comfort", "SUS_Performance", "SUS_Braking", "SUS_Durability",
+    "ch_DE_Performance", "DE_Control", "DE_Str", "DE_Depend",
+    "ch_TECH_Materials", "ch_TECH_Compoenents", "ch_TECH_Techniques", "ch_TECH_Tech",
+]
+
+GEARBOX_SLIDER_KEYS = [
+    "g_de_performance", "de_fuel", "de_depend", "de_comfort",
+    "Tech_Material", "Tech_Parts", "g_Tech_Techniques", "g_Tech_Tech",
+]
+
+VEHICLE_SLIDER_KEYS = [
+    "Scroll_InteriorStyle", "Scroll_InteriorInno", "Scroll_InteriorLux",
+    "Scroll_InteriorComf", "Scroll_InteriorSafe", "Scroll_InteriorTech",
+    "Scroll_MatMatQual", "Scroll_MatMatInterQual",
+    "Scroll_MatPaintQual", "Scroll_MatManuTech",
+    "Scroll_DesignStyle", "Scroll_DesignLux", "Scroll_DesignSafety",
+    "Scroll_DesignCargo", "Scroll_DesignDepend",
+    "Scroll_TestDemo", "Scroll_TestPerform", "Scroll_TestFuel",
+    "Scroll_TestComf", "Scroll_TestUtil", "Scroll_TestReli",
+]
+
+
+# ── C1. 감도 분석 ─────────────────────────────────────────────────
+
+def _get_slider_keys(component: str) -> list[str]:
+    """컴포넌트 타입별 슬라이더 키 목록 반환."""
+    return {
+        "engine": ENGINE_SLIDER_KEYS,
+        "chassis": CHASSIS_SLIDER_KEYS,
+        "gearbox": GEARBOX_SLIDER_KEYS,
+        "vehicle": VEHICLE_SLIDER_KEYS,
+    }[component]
+
+
+def compute_sensitivity(
+    component: str,
+    sliders: dict,
+    sub: dict,
+    year: int,
+    skill: int,
+    delta: float = 0.1,
+    bore_mm: float = 70.0,
+    stroke_mm: float = 80.0,
+    cylinders: int = 4,
+    gears: int = 4,
+) -> dict[str, dict]:
+    """각 슬라이더를 ±delta 변동시키고 estimate_*_full() 재실행 → 메트릭 변화 측정.
+
+    Returns {slider_key: {"current": val, "baseline": {...}, "plus": {...}, "minus": {...}}}
+    순수 Python 수학 — 약 186 호출, <200ms.
+    """
+    keys = _get_slider_keys(component)
+
+    def _run(sl: dict) -> dict:
+        sl_copy = dict(sl)
+        sub_copy = dict(sub)
+        if component == "engine":
+            return estimate_engine_full(sl_copy, sub_copy, year, skill,
+                                        bore_mm, stroke_mm, cylinders)
+        elif component == "chassis":
+            return estimate_chassis_full(sl_copy, sub_copy, year, skill)
+        elif component == "gearbox":
+            return estimate_gearbox_full(sl_copy, sub_copy, gears, year, skill)
+        return {}
+
+    baseline = _run(sliders)
+    result = {}
+
+    for key in keys:
+        current_val = _s(sliders, key, 0.5)
+
+        plus_sliders = dict(sliders)
+        plus_val = min(current_val + delta, 1.0)
+        plus_sliders[key] = plus_val
+        plus_result = _run(plus_sliders)
+
+        minus_sliders = dict(sliders)
+        minus_val = max(current_val - delta, 0.0)
+        minus_sliders[key] = minus_val
+        minus_result = _run(minus_sliders)
+
+        result[key] = {
+            "current": round(current_val, 3),
+            "baseline": baseline,
+            "plus": plus_result,
+            "minus": minus_result,
+            "plus_val": round(plus_val, 3),
+            "minus_val": round(minus_val, 3),
+        }
+
+    return result
+
+
+# ── C2. 증거 카드 포맷 ─────────────────────────────────────────────
+
+# SliderProfile 이름 lookup (key → profile)
+_PROFILE_MAP: dict[str, SliderProfile] = {p.key: p for p in _SLIDER_PROFILES}
+
+
+def format_evidence_cards(
+    component: str,
+    sensitivity: dict[str, dict],
+    max_metrics: int = 4,
+) -> str:
+    """감도 분석 결과를 LLM용 증거 카드(마크다운 테이블)로 포맷.
+
+    각 슬라이더에 대해 ±delta 변동 시 가장 영향이 큰 메트릭만 보여준다.
+    max_metrics: 슬라이더당 표시할 최대 메트릭 수 (기본 4, 프롬프트 길이 절감).
+    """
+    # 컴포넌트별 주요 메트릭 키 (테이블에 표시할 것)
+    metric_keys = {
+        "engine": ["torque", "hp", "rpm", "fuel_mpg", "power_rating",
+                    "fuel_eco_rating", "reliability_rating", "unit_cost", "design_cost"],
+        "chassis": ["weight_kg", "comfort_rating", "performance_rating",
+                     "strength_rating", "dependability_rating", "unit_cost", "design_cost"],
+        "gearbox": ["torque_capacity", "power_rating", "fuel_rating",
+                     "performance_rating", "reliability_rating", "comfort_rating",
+                     "unit_cost", "design_cost"],
+    }
+    all_keys = metric_keys.get(component, [])
+
+    cards = []
+    for slider_key, data in sensitivity.items():
+        profile = _PROFILE_MAP.get(slider_key)
+        label = profile.label if profile else slider_key
+        current = data["current"]
+
+        header = f"### {slider_key} ({label}) — cur: {current:.2f}"
+        if profile:
+            header += f" | optimal: {profile.optimal_lo:.2f}~{profile.optimal_hi:.2f}"
+
+        baseline = data["baseline"]
+        plus_r = data["plus"]
+        minus_r = data["minus"]
+
+        # 감도 절대값 기준으로 정렬, 상위 N개만 표시
+        metric_impacts = []
+        for mk in all_keys:
+            bv = baseline.get(mk, 0)
+            pv = plus_r.get(mk, 0)
+            mv = minus_r.get(mk, 0)
+            if isinstance(bv, (int, float)):
+                sens = pv - mv
+                metric_impacts.append((mk, mv, bv, pv, sens))
+        # unit_cost는 항상 포함, 나머지는 영향 크기순
+        cost_metrics = [(mk, mv, bv, pv, s) for mk, mv, bv, pv, s in metric_impacts if "cost" in mk]
+        non_cost = [(mk, mv, bv, pv, s) for mk, mv, bv, pv, s in metric_impacts if "cost" not in mk]
+        non_cost.sort(key=lambda x: abs(x[4]), reverse=True)
+        top_metrics = non_cost[:max(max_metrics - len(cost_metrics), 1)] + cost_metrics
+
+        rows = [
+            f"| Metric | -{abs(current - data['minus_val']):.2f} | cur | +{abs(data['plus_val'] - current):.2f} | sens |",
+            "|--------|------|-----|------|------|",
+        ]
+        for mk, mv, bv, pv, sens in top_metrics:
+            fmt = lambda v, k=mk: f"${v:,.0f}" if "cost" in k else f"{v:.1f}"
+            sens_str = f"${sens:+,.0f}" if "cost" in mk else f"{sens:+.1f}"
+            rows.append(f"| {mk} | {fmt(mv)} | {fmt(bv)} | {fmt(pv)} | {sens_str} |")
+
+        annotation = ""
+        if profile:
+            if current > profile.optimal_hi + 0.05:
+                annotation = f"⚠ HIGH — {profile.reason_high}"
+            elif current < profile.optimal_lo - 0.05:
+                annotation = f"⚠ LOW — {profile.reason_low}"
+            else:
+                annotation = "✓ OK"
+
+        card = header + "\n" + "\n".join(rows)
+        if annotation:
+            card += f"\n{annotation}"
+        cards.append(card)
+
+    return "\n\n".join(cards)
+
+
+# ── C3. 종합 설계 검증 ────────────────────────────────────────────
+
+def verify_full_design(
+    engine_sliders: dict, engine_sub: dict,
+    chassis_sliders: dict, chassis_sub: dict,
+    gearbox_sliders: dict, gearbox_sub: dict,
+    vehicle_sliders: dict,
+    year: int, skill: int,
+    bore_mm: float, stroke_mm: float, cylinders: int, gears: int,
+) -> dict:
+    """전체 설계 검증 — 4개 컴포넌트 스펙 합산 + 제약 위반 점검.
+
+    Returns dict with all metrics + constraint_violations list.
+    """
+    engine = estimate_engine_full(
+        dict(engine_sliders), dict(engine_sub), year, skill,
+        bore_mm, stroke_mm, cylinders,
+    )
+    chassis = estimate_chassis_full(
+        dict(chassis_sliders), dict(chassis_sub), year, skill,
+    )
+    gearbox = estimate_gearbox_full(
+        dict(gearbox_sliders), dict(gearbox_sub), gears, year, skill,
+    )
+
+    # 토크 호환성
+    torque_compat = check_torque_compatibility(
+        round(engine["torque"]), round(gearbox["torque_capacity"]),
+    )
+
+    # 슬라이더 평균 (hyper 페널티 판정)
+    def _avg(sl: dict, keys: list[str]) -> float:
+        vals = [_s(sl, k, 0.5) for k in keys]
+        return sum(vals) / len(vals) if vals else 0.5
+
+    engine_avg = _avg(engine_sliders, ENGINE_SLIDER_KEYS)
+    chassis_avg = _avg(chassis_sliders, CHASSIS_SLIDER_KEYS)
+    gearbox_avg = _avg(gearbox_sliders, GEARBOX_SLIDER_KEYS)
+    vehicle_avg = _avg(vehicle_sliders, VEHICLE_SLIDER_KEYS)
+
+    # 총 unit cost
+    total_unit_cost = engine["unit_cost"] + chassis["unit_cost"] + gearbox["unit_cost"]
+    total_design_cost = engine["design_cost"] + chassis["design_cost"] + gearbox["design_cost"]
+
+    # 제약 위반 점검
+    violations = []
+    if not torque_compat["compatible"]:
+        violations.append(
+            f"TORQUE_OVERFLOW: engine {engine['torque']:.0f} > gearbox {gearbox['torque_capacity']:.0f}"
+        )
+    for label, avg in [("engine", engine_avg), ("chassis", chassis_avg),
+                        ("gearbox", gearbox_avg), ("vehicle", vehicle_avg)]:
+        if avg >= SLIDER_AVG_DANGER:
+            violations.append(f"HYPER_SLIDER_{label.upper()}: avg={avg:.2f} >= {SLIDER_AVG_DANGER}")
+        elif avg >= SLIDER_AVG_RISKY:
+            violations.append(f"RISKY_SLIDER_{label.upper()}: avg={avg:.2f} >= {SLIDER_AVG_RISKY}")
+
+    return {
+        "engine": engine,
+        "chassis": chassis,
+        "gearbox": gearbox,
+        "torque_compatibility": torque_compat,
+        "slider_averages": {
+            "engine": round(engine_avg, 3),
+            "chassis": round(chassis_avg, 3),
+            "gearbox": round(gearbox_avg, 3),
+            "vehicle": round(vehicle_avg, 3),
+        },
+        "total_unit_cost": total_unit_cost,
+        "total_design_cost": total_design_cost,
+        "constraint_violations": violations,
+    }

@@ -76,5 +76,8 @@ class GraphState(TypedDict):
     design_context: str  # 설계 관련 추가 SQL 결과
     # 이벤트 예측 파이프라인 필드
     forecast_context: str  # 전쟁/경제 이벤트 예측 + 자산 위험 분석
+    # 다단계 설계 자문 필드
+    design_goal: dict  # Stage 0 목표 추출 결과
+    design_stages: list[dict]  # 각 스테이지 결과 (디버깅용)
     # 세션 메모리 필드
     memory_context: str  # 세션 메모리에서 가져온 캐시 컨텍스트

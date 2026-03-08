@@ -28,22 +28,67 @@ from src.queries import (
     TECH_SKILL_SQL, AVAILABLE_COMPONENTS_SQL_TEMPLATE, PLAYER_CITY_IDS_SQL,
     ENGINE_SUB_COMPONENTS_SQL, CHASSIS_SUB_COMPONENTS_SQL,
 )
-from src.graph_utils import create_llm, strip_think_tags
+from src.graph_utils import create_llm, strip_think_tags, LLM_MAX_TOKENS_DESIGN
 
-# ── 시스템 프롬프트: Qwen이 "엔진"을 게임엔진으로 오해하지 않도록 강력히 고정 ──
+# ── 설계 자문 시스템 프롬프트 ──
+# 모델에 구애받지 않는 범용 프롬프트. 역할·도메인·출력 규칙을 system role에 고정하여
+# user message(데이터)와 분리한다.
 DESIGN_SYSTEM_MESSAGE = """\
-You are an automotive engineer AI for GearCity, a car company management simulation game.
-Your ONLY job is designing AUTOMOBILE components: car engines, chassis, gearboxes, and vehicles.
+# Persona
 
-CRITICAL DEFINITIONS (절대 혼동 금지):
-- "엔진" / "engine" = 자동차 내연기관 (pistons, cylinders, bore, stroke, torque, HP)
-- "샤시" / "chassis" = 자동차 차체 프레임 (suspension, drivetrain, frame)
-- "기어박스" / "gearbox" = 자동차 변속기 (transmission, gears)
-- NEVER discuss game engines (Unity/Unreal/Godot), software engines, or anything unrelated to automobiles.
+You are the Chief Technical Secretary of an automobile company in the game GearCity.
+You report directly to the CEO (the player). Your expertise spans automotive engineering
+(powertrain, chassis, drivetrain) and business analysis (cost optimization, market positioning).
 
-You receive slider values (0.0~1.0) that control physical properties of car components.
-You receive evidence cards showing how each slider affects cost, performance, fuel economy, etc.
-You must output ONLY valid JSON with slider recommendations. No markdown fences, no explanation outside JSON."""
+Your personality: professional, data-driven, concise. You do not flatter or pad your reports
+with pleasantries. You present numbers first, then your judgment. When something is wrong
+(e.g., torque incompatibility, cost overrun), you state it bluntly. When the CEO's design
+will work well, a brief acknowledgment suffices — no unnecessary praise.
+
+You think in bore/stroke ratios, torque curves, unit cost per slider increment, and
+cost-to-rating efficiency. When someone says "engine" you think pistons and cylinders.
+You have never heard of Unity, Unreal, or Godot.
+
+# Domain Vocabulary
+
+In this company, these words have ONE meaning:
+
+| Term | Always means | Physical properties |
+|------|-------------|-------------------|
+| Engine (엔진) | Internal combustion car engine | pistons, bore, stroke, displacement, cylinders, torque, HP, RPM |
+| Chassis (샤시) | Car body frame | suspension, drivetrain, frame weight, ride height, braking |
+| Gearbox (기어박스/변속기) | Car transmission | gear count, torque capacity, shift quality |
+| Vehicle (차량) | Complete automobile | interior, materials, paint, safety, styling, testing |
+| Design (설계/디자인) | Automobile component engineering | slider values, specs, ratings |
+
+# How Design Works in GearCity
+
+Each component has **sliders** (0.0 to 1.0) controlling physical properties.
+- Higher slider → better ratings, but cost scales as slider² (quadratic).
+- Above 0.6: diminishing returns — cost rises steeply, ratings plateau.
+- Technology sliders (materials, techniques, tech, components): best cost-to-rating ratio.
+- Dependability sliders: 6× weight on reliability — highest impact per unit cost.
+- Performance ↔ Fuel Economy: fundamental tradeoff (slider_torq vs slider_eco).
+- Gearbox torque capacity MUST exceed engine torque (critical compatibility check).
+
+You will receive **evidence cards**: Python sensitivity analysis showing the exact impact
+of each slider ±0.1 on torque, HP, fuel economy, unit cost, ratings. Base your
+recommendations on these numbers, not on intuition.
+
+# Output Protocol
+
+For design stages (engine, chassis, gearbox, vehicle):
+1. Output ONLY valid JSON. No markdown fences, no text before or after the JSON.
+2. The JSON must parse with json.loads(). No trailing commas, no comments.
+3. All slider values: numbers between 0.0 and 1.0.
+4. Include "reasoning" (2-3 sentences): what tradeoffs you chose and why.
+
+For summary reports to the CEO:
+1. Answer in the same language as the CEO's question.
+2. Lead with numbers: present data tables before commentary.
+3. Never say data is missing — all numbers are Python-verified from the game database.
+4. Flag problems bluntly: torque overflow, cost overrun, constraint violations.
+5. Recommend concrete actions: which slider to change, by how much, expected impact."""
 from src.design_formulas import (
     EngineParams,
     VehicleParams,
@@ -465,8 +510,13 @@ def _extract_design_goal(llm, question: str, vehicle_summary: str) -> dict:
         SystemMessage(content=DESIGN_SYSTEM_MESSAGE),
         HumanMessage(content=prompt),
     ]
-    response = llm.invoke(messages)
-    goal = _parse_stage_json(response.content)
+    try:
+        response = llm.invoke(messages)
+        raw = response.content or ""
+    except Exception as e:
+        _write_progress(f"  ⚠ Goal extraction failed: {type(e).__name__}: {str(e)[:200]}")
+        raw = ""
+    goal = _parse_stage_json(raw)
 
     # 기본값 보장
     goal.setdefault("mode", "new")
@@ -533,8 +583,33 @@ def _run_stage(llm, prompt_template: str, system_message: str = DESIGN_SYSTEM_ME
         SystemMessage(content=system_message),
         HumanMessage(content=user_prompt),
     ]
-    response = llm.invoke(messages)
-    return _parse_stage_json(response.content)
+    try:
+        response = llm.invoke(messages)
+        raw = response.content or ""
+    except Exception as e:
+        _write_progress(f"  ⚠ LLM 호출 실패: {type(e).__name__}: {str(e)[:200]}")
+        return {}
+
+    # 디버그: LLM 원문 출력
+    preview = raw[:800] if raw else "(EMPTY)"
+    _write_progress(f"  LLM raw ({len(raw)} chars): {preview}")
+
+    # 응답 메타데이터 (eval_count, done_reason)
+    meta = getattr(response, 'response_metadata', {})
+    eval_count = meta.get('eval_count', '?')
+    done_reason = meta.get('done_reason', '?')
+    _write_progress(f"  eval_count={eval_count}, done_reason={done_reason}")
+    if done_reason == 'length':
+        _write_progress(f"  ⚠ Output truncated! (num_predict 한도 도달)")
+
+    result = _parse_stage_json(raw)
+    parsed_sliders = result.get("sliders", {})
+    _write_progress(f"  Parsed sliders: {len(parsed_sliders)} keys")
+    if not parsed_sliders and raw:
+        _write_progress(f"  ⚠ JSON parse failed. Full output ({len(raw)} chars):")
+        for i in range(0, min(len(raw), 2000), 200):
+            _write_progress(f"    {raw[i:i+200]}")
+    return result
 
 
 def _format_current_sliders(row: dict, keys: list[str]) -> str:
@@ -560,7 +635,7 @@ def design_advisor_node(state: GraphState) -> dict:
     """
     db_path = state["db_path"]
     question = state["user_question"]
-    llm = create_llm(temperature=0.3)
+    llm = create_llm(temperature=0.3, max_tokens=LLM_MAX_TOKENS_DESIGN)
 
     # ── Step 1: 데이터 수집 ──
     _write_progress("DB 데이터 조회 중...")
@@ -785,21 +860,31 @@ def design_advisor_node(state: GraphState) -> dict:
         final_bore, final_stroke, final_cylinders, final_gears,
     )
 
-    # 검증 결과 요약
+    # 검증 결과 요약 (scope에 맞게 필터링)
     v = verification
-    verification_lines = [
-        f"Engine — Torque: {v['engine']['torque']:.1f}, HP: {v['engine']['hp']}, "
-        f"RPM: {v['engine']['rpm']}, FuelEco: {v['engine']['fuel_mpg']:.1f}mpg, "
-        f"Unit Cost: ${v['engine']['unit_cost']:,}",
-        f"Chassis — Weight: {v['chassis']['weight_kg']:.1f}kg, "
-        f"Comfort: {v['chassis']['comfort_rating']:.1f}, "
-        f"Unit Cost: ${v['chassis']['unit_cost']:,}",
-        f"Gearbox — Torque Cap: {v['gearbox']['torque_capacity']:.1f}, "
-        f"Unit Cost: ${v['gearbox']['unit_cost']:,}",
-        f"Total Component Unit Cost: ${v['total_unit_cost']:,}",
-        f"Torque Compatible: {v['torque_compatibility']['compatible']}",
-        f"Slider Averages: {v['slider_averages']}",
-    ]
+    verification_lines = []
+    if scope in ("all", "engine"):
+        verification_lines.append(
+            f"Engine — Torque: {v['engine']['torque']:.1f}, HP: {v['engine']['hp']}, "
+            f"RPM: {v['engine']['rpm']}, FuelEco: {v['engine']['fuel_mpg']:.1f}mpg, "
+            f"Unit Cost: ${v['engine']['unit_cost']:,}"
+        )
+    if scope in ("all", "chassis"):
+        verification_lines.append(
+            f"Chassis — Weight: {v['chassis']['weight_kg']:.1f}kg, "
+            f"Comfort: {v['chassis']['comfort_rating']:.1f}, "
+            f"Unit Cost: ${v['chassis']['unit_cost']:,}"
+        )
+    if scope in ("all", "gearbox"):
+        verification_lines.append(
+            f"Gearbox — Torque Cap: {v['gearbox']['torque_capacity']:.1f}, "
+            f"Unit Cost: ${v['gearbox']['unit_cost']:,}"
+        )
+    if scope == "all":
+        verification_lines.append(f"Total Component Unit Cost: ${v['total_unit_cost']:,}")
+    # 토크 호환성은 엔진/기어박스 관련이면 항상 표시
+    if scope in ("all", "engine", "gearbox"):
+        verification_lines.append(f"Torque Compatible: {v['torque_compatibility']['compatible']}")
     if v["constraint_violations"]:
         verification_lines.append(f"VIOLATIONS: {', '.join(v['constraint_violations'])}")
     else:
@@ -859,13 +944,36 @@ def design_advisor_node(state: GraphState) -> dict:
         vehicle_status=vehicle_status,
         tech_context=tech_context if len(tech_context) < 4000 else tech_context[:4000] + "\n...(truncated)",
         question=question,
+        scope=scope,
     )
     summary_messages = [
         SystemMessage(content=DESIGN_SYSTEM_MESSAGE),
         HumanMessage(content=summary_prompt),
     ]
-    summary_response = llm.invoke(summary_messages)
-    answer = strip_think_tags(summary_response.content)
+    try:
+        summary_response = llm.invoke(summary_messages)
+        raw_summary = summary_response.content or ""
+    except Exception as e:
+        _write_progress(f"  ⚠ Summary LLM 호출 실패: {type(e).__name__}: {str(e)[:200]}")
+        raw_summary = ""
+
+    _write_progress(f"  Summary raw ({len(raw_summary)} chars): {raw_summary[:500] if raw_summary else '(EMPTY)'}")
+
+    # Summary 메타데이터 진단
+    try:
+        s_meta = getattr(summary_response, 'response_metadata', {})
+        s_eval = s_meta.get('eval_count', '?')
+        s_done = s_meta.get('done_reason', '?')
+        _write_progress(f"  Summary eval_count={s_eval}, done_reason={s_done}")
+        if s_done == 'length':
+            _write_progress(f"  ⚠ Summary truncated! (num_predict 한도 도달)")
+    except NameError:
+        pass
+
+    answer = strip_think_tags(raw_summary)
+    if not answer.strip():
+        _write_progress("  ⚠ Summary is empty — Python 검증 결과로 대체")
+        answer = f"## 설계 검증 결과 (Python 계산)\n\n{verification_summary}\n\n(LLM 요약 생성 실패 — 위 데이터는 정확한 계산 결과입니다)"
 
     # 세션 메모리에 설계 결과 캐시
     get_memory().put("vehicle_design", verification_summary)

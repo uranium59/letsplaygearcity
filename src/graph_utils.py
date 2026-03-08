@@ -21,10 +21,11 @@ MODEL_NAME = os.getenv("OLLAMA_MODEL", "qwen3:30b")
 # 노드 역할별 최대 출력 토큰 — 무한 생성 루프 방지
 # (repeat_penalty=1 + temperature=0 조합에서 EOS 없이 반복 생성되는 문제 차단)
 
-LLM_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
+LLM_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "49152"))
 LLM_MAX_TOKENS_SQL = 512       # SQL 생성: SELECT 문 1개
 LLM_MAX_TOKENS_PLAN = 1024     # Planner: SUB/TABLES 5개
 LLM_MAX_TOKENS_ANALYSIS = 3000  # Analyst/Strategist/Aggregator: 종합 분석
+LLM_MAX_TOKENS_DESIGN = 49152  # Design Advisor: num_ctx와 동일. 실제 한도는 num_ctx - input_tokens
 LLM_MAX_TOKENS_CLASSIFY = 32   # Classifier: 단어 1개
 
 
